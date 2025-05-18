@@ -1,143 +1,130 @@
-# InferQ Dataset – Contributor Guide
+# InferQ Dataset – Contributor Guide (v2)
 
-Welcome, **InferQ Honours Partner!** 🚀 This README is your one‑stop manual for
-setting up the repo, generating & pushing new quantum circuits, and never
-downloading more data than you need.
+This README reflects the **current repo layout**
+and the **exact commands** you should run every day.
 
----
-
-## 0  Project snapshot
-
-| Item               | Purpose                                                                 |
-| ------------------ | ----------------------------------------------------------------------- |
-| `generator/`       | Scripts that **create** circuits                                        |
-| `utils/`           | Re‑usable code (feature extractors, utils)                              |
-| `circuits/`        | One dir **per circuit**:<br>`<uuid>/` → `meta.json` + `circuit.qpy.dvc` |
-| `MANIFEST.parquet` | Master index built from all `meta.json` files                           |
-| `.dvc/`            | DVC config – points at the shared bucket                                |
-
-All heavy `.qpy` blobs live **only in the remote bucket**; the repo keeps a
-few‑byte pointer file and textual metadata.
+_Python package names, dir structure, and workflow have changed
+slightly compared to the first draft._
 
 ---
 
-## 1  Prerequisites (install **once**)
-
-| Tool        | macOS / Linux                                                                 | Windows (PowerShell)    | Why we need it                                                             |       |                                           |
-| ----------- | ----------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------- | ----- | ----------------------------------------- |
-| **uv**      | \`curl -Ls [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | bash\`                  | \`irm [https://astral.sh/uv/install.ps1](https://astral.sh/uv/install.ps1) | iex\` | Python env + super‑fast package installer |
-| **DVC**     | `uv pip install "dvc[s3]"` <br>(change `[s3]`→`[azure]` etc.)                 | same                    | Tracks & pushes `.qpy` files to remote                                     |       |                                           |
-| **Git LFS** | `brew install git‑lfs`   *or*  `apt install git‑lfs`                          | `choco install git‑lfs` | (Only for the tiny _dev_ subset)                                           |       |                                           |
-
-> **Keys & endpoint** – ask Andrei for the AWS `ACCESS_KEY`, `SECRET_KEY`, and
-> bucket URL. Put them in your shell rc or use a `.env` file.
-
----
-
-## 2  First‑time clone
+## 0 TL;DR daily loop
 
 ```bash
-# 1 clone code (no big data!)
+cd inferq-dataset               # repo root (direnv auto‑activates .venv)
+
+git pull                        # get latest code + .dvc pointers
+python scripts/sync_manifest.py # merge + pull newest MANIFEST.parquet
+
+# --- add circuits -----------------------------------------------------
+python -m generator.build_ghz 256           # or any generator module
+python -m generator.build_random 128        # ← module form **required**
+
+# track heavy binaries (.qpy → .dvc pointer)
+dvc add circuits/*/circuit.qpy
+
+python generator/build_manifest.py          # refresh local manifest
+
+git add circuits/**/circuit.qpy.dvc \
+        circuits/**/meta.json \
+        MANIFEST.parquet
+
+git commit -m "Add new circuits"
+
+dvc push                                    # upload blobs → Azure
+python scripts/sync_manifest.py             # upload merged manifest
+
+git commit MANIFEST.parquet -m "Sync manifest"
+git push
+```
+
+---
+
+## 1 Repo anatomy (current)
+
+```
+inferq-dataset/
+├── generator/             #   • build_ghz.py  (call with  python -m generator.build_ghz)
+│   │                      #   • … other generators …
+│   └── __init__.py        # makes it a *package* so -m works
+├── utils/                 #   • feature_extractors.py  (import paths unchanged)
+│   └── __init__.py
+├── scripts/
+│   └── sync_manifest.py   # merge local+remote MANIFEST.parquet
+├── circuits/              # one UUID dir per circuit
+│   └── <uuid>/            #   • circuit.qpy      (heavy, ignored by Git)
+│                          #   • circuit.qpy.dvc  (pointer, in Git)
+│                          #   • meta.json        (tiny, in Git)
+├── MANIFEST.parquet       # always tiny; overwritten by sync_script
+├── .dvc/                  # DVC config
+├── .gitignore             # ignores *.qpy only (not .dvc/.json)
+├── .dvcignore             # hides everything *except* circuits/**
+└── .envrc                 # direnv loads .env + activates .venv
+```
+
+---
+
+## 2 One‑time setup (per machine)
+
+```bash
+# install tooling
+brew install direnv git-lfs        # or apt/dnf/pacman
+uv pip install "dvc[azure]"        # inside any Python 3.12 env
+
+# shell hook
+echo 'eval "$(direnv hook bash)"' >> ~/.bashrc   # bash example
+
+# clone
 git clone git@github.com:inferq/inferq-dataset.git
 cd inferq-dataset
-
-# 2 create Python env & install deps (seconds)
 uv venv --python 3.12
-source .venv/bin/activate          # Win: .venv\Scripts\activate
-uv pip sync                        # reads requirements.lock
+source .venv/bin/activate
+uv pip sync                     # installs qiskit, pandas, azure libs
 
-# 3 (optional) pull the tiny dev subset
-# dvc pull circuits_dev/**/*qpy.dvc
+direnv allow                    # loads .envrc => credentials + venv
 ```
 
-If you **only** want to run generators & push new stuff, you’re done – skip the
-pull.
+Create `.env` (ignored by Git):
 
----
-
-## 3  Generating & pushing a new circuit
-
-```bash
-# A make a circuit – script prompts write into circuits/<uuid>/
-python generator/build_ghz.py 512
-
-# B track the heavy binary (creates .dvc pointer)
-dvc add circuits/*/*circuit.qpy
-
-# C rebuild manifest (auto‑hook does this too)
-python generator/build_manifest.py
-
-# D commit lightweight files
-git add circuits/**/*meta.json circuits/**/*qpy.dvc MANIFEST.parquet
-git commit -m "Add 512‑qubit GHZ"
-
-git push          # just code & text
-
-dvc push          # uploads *only* this new .qpy blob
 ```
-
-That’s it! Other collaborators only see a 2‑kB diff unless they choose to
-`dvc pull` your circuit.
-
----
-
-## 4  Downloading **just one** heavy circuit
-
-```bash
-# pulls one file; never fetches the full bucket
- dvc pull circuits/ab12ef34/circuit.qpy.dvc
-```
-
-Need stats but not the circuit? Read the master Parquet:
-
-```python
-import pandas as pd
-df = pd.read_parquet("MANIFEST.parquet")
+AZURE_STORAGE_ACCOUNT=inferqstorage
+AZURE_STORAGE_SAS_TOKEN=?sv=...
 ```
 
 ---
 
-## 5  Directory rules & naming
+## 3 Running generators **the right way**
 
-\* Each circuit lives in its own folder `<uuid>/` generated by `uuid.uuid4().hex`.
-\* Put **exactly two files** inside:
-\* `meta.json` – small metadata
-\* `circuit.qpy` (tracked via `.dvc` pointer)
-\* Never rename folders after commit; UUID is immutable key.
+Because `generator/` is a **package**, always invoke modules, e.g.:  
+`python -m generator.build_ghz 1000` rather than pointing to the file path.
+This guarantees Python adds the project root to `sys.path` so
+`import utils.feature_extractors` works.
 
----
-
-## 6  Troubleshooting
-
-| Symptom                              | Fix                                                                       |
-| ------------------------------------ | ------------------------------------------------------------------------- |
-| `dvc push` asks for creds            | Export `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (or Azure SAS token) |
-| Merge conflict in `MANIFEST.parquet` | Run `python generator/build_manifest.py`, `git add`, then re‑commit       |
-| “file already tracked by DVC”        | Remove duplicate `dvc add` or use unique UUID dirs                        |
+_(If you really want the shebang style, add `#!/usr/bin/env python` to the
+script, `chmod +x`, and call `./generator/build_ghz.py 256`.)_
 
 ---
 
-## 7  Updating dependencies
+## 4 Workflow details
 
-```bash
-uv pip up --upgrade                 # upgrades all pinned wheels
-uv pip compile requirements.in -o requirements.lock
-uv pip sync
-```
-
-Commit both `requirements.in` & `requirements.lock`.
+| Stage                       | Command(s)                           | Notes                      |
+| --------------------------- | ------------------------------------ | -------------------------- |
+| **Generate circuit(s)**     | `python -m generator...`             | creates `<uuid>/` folders  |
+| **Track with DVC**          | `dvc add circuits/*/circuit.qpy`     | writes `.dvc` pointers     |
+| **Refresh manifest**        | `python generator/build_manifest.py` | local only                 |
+| **Commit light files**      | `git add …` + `git commit`           | `.qpy` _not_ in Git        |
+| **Upload heavy blobs**      | `dvc push`                           | to Azure Blob `inferq-dvc` |
+| **Merge → upload manifest** | `python scripts/sync_manifest.py`    | overwrites remote copy     |
+| **Push code**               | `git push`                           | done                       |
 
 ---
 
-## 8  FAQ
+## 5 Common pitfalls & fixes
 
-> **Q Do I ever need to run `dvc pull`?**
-> Only if you want to **simulate / inspect** an existing heavy circuit.
->
-> **Q What if I’m offline?**
-> All generators, feature extractors and tests work with _zero_ remote data.
->
-> **Q Can I use Google Cloud / MinIO instead of S3?**
-> Yes – owner will change the default remote in `.dvc/config`.
+| Error                                               | Fix                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ModuleNotFoundError: utils` when running generator | Use `python -m generator.<name>` from repo root or export `PYTHONPATH=$PWD`. |
+| `bad DVC file name … is git‑ignored`                | Edit `.gitignore`: ignore `**/*.qpy` only; keep `.dvc` & `.json`.            |
+| `dvc push` 403 forbidden                            | Check `AZURE_STORAGE_SAS_TOKEN` / rotate SAS.                                |
 
 ---
