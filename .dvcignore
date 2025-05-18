@@ -1,3 +1,14 @@
 # Add patterns of files dvc should ignore, which could improve
 # the performance. Learn more at
 # https://dvc.org/doc/user-guide/dvcignore
+# .dvcignore  (same syntax as .gitignore)
+
+# 1️⃣  Ignore everything by default
+*
+
+# 2️⃣  Whitelist MANIFEST.parquet
+!MANIFEST.parquet
+
+# 3️⃣  Whitelist the circuits directory and everything inside it
+!circuits/
+!circuits/**/*
