@@ -6,8 +6,6 @@
 # 1️⃣  Ignore everything by default
 *
 
-# 2️⃣  Whitelist MANIFEST.parquet
-!MANIFEST.parquet
 
 # 3️⃣  Whitelist the circuits directory and everything inside it
 !circuits/

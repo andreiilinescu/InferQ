@@ -8,3 +8,9 @@ __pycache__/
 circuits/
 # Conda
 .conda/
+acct.key
+
+!MANIFEST.parquet
+!circuits/**/
+!circuits/**/*.dvc
+!circuits/**/*.json
