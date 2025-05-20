@@ -21,12 +21,11 @@ python -m generator.build_ghz 256           # or any generator module
 python -m generator.build_random 128        # ← module form **required**
 
 # track heavy binaries (.qpy → .dvc pointer)
-dvc add circuits/*/circuit.qpy
+dvc add circuits/
 
 python generator/build_manifest.py          # refresh local manifest
 
-git add circuits/**/circuit.qpy.dvc \
-        circuits/**/meta.json \
+git add circuits.dvc  \
         MANIFEST.parquet
 
 git commit -m "Add new circuits"
