@@ -11,6 +11,6 @@ circuits/
 acct.key
 
 !MANIFEST.parquet
-!circuits/**/
-!circuits/**/*.dvc
-!circuits/**/*.json
+
+
+playground.ipynb
