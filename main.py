@@ -1,10 +1,12 @@
 import sys, pathlib, qiskit
-from utils.feature_extractors import extract_all
+from feature_extractors.main import extract_all
 from utils.save_utils import save_circuit
 from generator import *
 
+
 def main():
     print("Hello from inferq!")
+
 
 # if __name__ == "__main__":
 #     main()
