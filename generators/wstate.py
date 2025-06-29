@@ -1,7 +1,7 @@
 from qiskit import QuantumCircuit, QuantumRegister
 import numpy as np
 
-def wstate(n):
+def generate(n):
     qc = QuantumCircuit(n, name=f"Wstate({n})")
     # Could use G gate approach, but using f gate approach like MQT bench? 
 

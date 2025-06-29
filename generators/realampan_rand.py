@@ -26,7 +26,7 @@ def create_real_amplitudes_circuit(num_qubits: int, depth: int) -> QuantumCircui
 
     return ansatz
 
-def get_completed_real_amplitudes_circuit(num_qubits: int, depth: int, parameter_values: list[float]) -> QuantumCircuit:
+def generate(num_qubits: int, depth: int, parameter_values: list[float]) -> QuantumCircuit:
     """
     Creates and completes a RealAmplitudes Qiskit circuit with the provided parameters.
 

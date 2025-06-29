@@ -4,7 +4,7 @@ from qiskit.circuit import QuantumCircuit, QuantumRegister
 # Defining coin and then 
 
 # BASED ON MQT BENCH's implementation
-def generateQWalk(n: int,depth: int, coin_state_preparation: QuantumCircuit = None):
+def generate(n: int,depth: int, coin_state_preparation: QuantumCircuit = None):
     n = n -1
 
     coin = QuantumRegister(1, "coin")

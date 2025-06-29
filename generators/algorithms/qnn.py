@@ -1,7 +1,7 @@
 from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import real_amplitudes, z_feature_map
 
-def create_circuit(n: int) -> QuantumCircuit:
+def generate(n: int) -> QuantumCircuit:
     """Returns a quantum circuit implementing a Quantum Neural Network (QNN) with a ZZ FeatureMap and a RealAmplitudes ansatz.
 
     Arguments:

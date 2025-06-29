@@ -55,7 +55,7 @@ def create_two_local_circuit(
 
     return ansatz
 
-def get_completed_two_local_circuit(
+def generate(
     num_qubits: int,
     reps: int,
     parameter_values: list[float],
