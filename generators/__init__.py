@@ -6,8 +6,11 @@ from .effu2 import EfficientU2
 from .realamp_ansatz_rand import RealAmplitudes
 from .two_local_rand import TwoLocal
 
-from .algorithms.amplitude_estimation import generate as amplitude_estimation
-from .algorithms.deutsch_jozsa import generate as deutsch_jozsa
+
+from .algorithms.amplitude_estimation.amplitude_estimation_class import (
+    AmplitudeEstimation,
+)
+from .algorithms.deutsch_jozsa.deutsch_jozsa_class import DeutschJozsa
 from .algorithms.grover_no_ancilla import generate as grover_no_ancilla
 from .algorithms.grover_v_chain import generate as grover_v_chain
 from .algorithms.qaoa import generate as qaoa
@@ -20,8 +23,8 @@ __all__ = [
     "GHZ",
     "GraphState",
     "RandomCircuit",
-    "amplitude_estimation",
-    "deutsch_jozsa",
+    "AmplitudeEstimation",
+    "DeutschJozsa",
     "grover_no_ancilla",
     "grover_v_chain",
     "qaoa",

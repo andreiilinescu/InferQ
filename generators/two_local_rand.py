@@ -22,8 +22,8 @@ class TwoLocal(Generator):
         parameter_values: list[float],
         rotation_blocks: list[str] = None,
         entanglement_blocks: list[str] = None,
-        entanglement: str = 'full',
-        skip_final_rotation_layer: bool = False
+        entanglement: str = "full",
+        skip_final_rotation_layer: bool = False,
     ) -> QuantumCircuit:
         """
         Creates and completes a TwoLocal Qiskit circuit with the provided parameters.
@@ -57,9 +57,9 @@ class TwoLocal(Generator):
                             count does not match.
         """
         if rotation_blocks is None:
-            rotation_blocks = ['ry', 'rz']
+            rotation_blocks = ["ry", "rz"]
         if entanglement_blocks is None:
-            entanglement_blocks = ['cx']
+            entanglement_blocks = ["cx"]
 
         # Create the TwoLocal ansatz circuit
         ansatz = QiskitTwoLocal(
@@ -68,7 +68,7 @@ class TwoLocal(Generator):
             rotation_blocks=rotation_blocks,
             entanglement_blocks=entanglement_blocks,
             entanglement=entanglement,
-            skip_final_rotation_layer=skip_final_rotation_layer
+            skip_final_rotation_layer=skip_final_rotation_layer,
         )
 
         # Check if the provided parameter_values match the number of expected parameters
@@ -83,18 +83,20 @@ class TwoLocal(Generator):
         # Assign the numerical values to the parameters
         completed_circuit = ansatz.assign_parameters(parameter_values)
         completed_circuit.name = f"TwoLocal({num_qubits}q,{circuit_reps}r)"
-        
+
         if self.measure:
             completed_circuit.measure_all()
-            
+
         return completed_circuit
 
-    def generate_parameters(self) -> tuple[int, int, list[float], list[str], list[str], str, bool]:
+    def generate_parameters(
+        self,
+    ) -> tuple[int, int, list[float], list[str], list[str], str, bool]:
         """
         Generate parameters for the TwoLocal circuit.
 
         Returns:
-            tuple: (num_qubits, circuit_reps, parameter_values, rotation_blocks, 
+            tuple: (num_qubits, circuit_reps, parameter_values, rotation_blocks,
                    entanglement_blocks, entanglement, skip_final_rotation_layer)
         """
         self.num_qubits = num_qbits(
@@ -102,26 +104,33 @@ class TwoLocal(Generator):
             self.base_params.max_qubits,
             self.base_params.seed,
         )
-        
+
         self.circuit_reps = reps(
             self.base_params.min_reps,
             self.base_params.max_reps,
             self.base_params.seed,
         )
-        
+
         # Generate random rotation and entanglement blocks
-        rotation_options = [['ry'], ['rz'], ['rx'], ['ry', 'rz'], ['rx', 'ry'], ['rx', 'rz']]
-        entanglement_options = [['cx'], ['cz'], ['cy']]
-        entanglement_patterns = ['full', 'linear', 'circular']
-        
+        rotation_options = [
+            ["ry"],
+            ["rz"],
+            ["rx"],
+            ["ry", "rz"],
+            ["rx", "ry"],
+            ["rx", "rz"],
+        ]
+        entanglement_options = [["cx"], ["cz"], ["cy"]]
+        entanglement_patterns = ["full", "linear", "circular"]
+
         if self.base_params.seed is not None:
             random.seed(self.base_params.seed)
-            
+
         self.rotation_blocks = random.choice(rotation_options)
         self.entanglement_blocks = random.choice(entanglement_options)
         self.entanglement = random.choice(entanglement_patterns)
         self.skip_final_rotation_layer = random.choice([True, False])
-        
+
         # Create a temporary circuit to count parameters
         temp_ansatz = QiskitTwoLocal(
             num_qubits=self.num_qubits,
@@ -129,17 +138,16 @@ class TwoLocal(Generator):
             rotation_blocks=self.rotation_blocks,
             entanglement_blocks=self.entanglement_blocks,
             entanglement=self.entanglement,
-            skip_final_rotation_layer=self.skip_final_rotation_layer
+            skip_final_rotation_layer=self.skip_final_rotation_layer,
         )
-        
+
         num_params = len(temp_ansatz.parameters)
         self.parameter_values = random_parameter_values(
-            num_params,
-            seed=self.base_params.seed
+            num_params, seed=self.base_params.seed
         )
-        
+
         self.measure = self.base_params.measure
-        
+
         return (
             self.num_qubits,
             self.circuit_reps,
@@ -147,7 +155,7 @@ class TwoLocal(Generator):
             self.rotation_blocks,
             self.entanglement_blocks,
             self.entanglement,
-            self.skip_final_rotation_layer
+            self.skip_final_rotation_layer,
         )
 
 
@@ -161,13 +169,20 @@ if __name__ == "__main__":
         min_reps=1,
         max_reps=3,
         measure=False,
-        seed=42
+        seed=42,
     )
-    
+
     two_local_generator = TwoLocal(params)
-    (num_qubits, circuit_reps, parameter_values, rotation_blocks, 
-     entanglement_blocks, entanglement, skip_final) = two_local_generator.generate_parameters()
-    
+    (
+        num_qubits,
+        circuit_reps,
+        parameter_values,
+        rotation_blocks,
+        entanglement_blocks,
+        entanglement,
+        skip_final,
+    ) = two_local_generator.generate_parameters()
+
     print("Generated parameters:")
     print(f"  - Number of qubits: {num_qubits}")
     print(f"  - Circuit repetitions: {circuit_reps}")
@@ -176,11 +191,20 @@ if __name__ == "__main__":
     print(f"  - Entanglement pattern: {entanglement}")
     print(f"  - Skip final rotation: {skip_final}")
     print(f"  - Number of parameters: {len(parameter_values)}")
-    print(f"  - Parameter values: {parameter_values[:5]}..." if len(parameter_values) > 5 else f"  - Parameter values: {parameter_values}")
-    
+    print(
+        f"  - Parameter values: {parameter_values[:5]}..."
+        if len(parameter_values) > 5
+        else f"  - Parameter values: {parameter_values}"
+    )
+
     two_local_circuit = two_local_generator.generate(
-        num_qubits, circuit_reps, parameter_values, rotation_blocks,
-        entanglement_blocks, entanglement, skip_final
+        num_qubits,
+        circuit_reps,
+        parameter_values,
+        rotation_blocks,
+        entanglement_blocks,
+        entanglement,
+        skip_final,
     )
     print("\nGenerated circuit:")
     print(two_local_circuit)

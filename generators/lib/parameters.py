@@ -104,7 +104,10 @@ def entanglement_pattern_string(seed: int = None) -> str:
 
 
 def random_parameter_values(
-    num_params: int, seed: int = None, min_val: float = 0.0, max_val: float = 2 * 3.14159
+    num_params: int,
+    seed: int = None,
+    min_val: float = 0.0,
+    max_val: float = 2 * 3.14159,
 ) -> list[float]:
     """
     Generate a list of random parameter values for quantum circuits.
@@ -118,3 +121,71 @@ def random_parameter_values(
     if seed is not None:
         random.seed(seed)
     return [random.uniform(min_val, max_val) for _ in range(num_params)]
+
+
+def evaluation_qubits(min_eval: int = 2, max_eval: int = 6, seed: int = None) -> int:
+    """
+    Generate a random number of evaluation qubits for amplitude estimation.
+
+    :param min_eval: Minimum number of evaluation qubits.
+    :param max_eval: Maximum number of evaluation qubits.
+    :param seed: Random seed for reproducibility.
+    :return: Random number of evaluation qubits.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_eval, max_eval)
+
+
+def demo_theta_value(
+    seed: int = None, min_theta: float = 0.1, max_theta: float = 1.5
+) -> float:
+    """
+    Generate a random theta value for amplitude estimation demo mode.
+
+    :param seed: Random seed for reproducibility.
+    :param min_theta: Minimum theta value (default: 0.1).
+    :param max_theta: Maximum theta value (default: 1.5).
+    :return: Random theta value.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.uniform(min_theta, max_theta)
+
+
+def oracle_type_choice(seed: int = None) -> str:
+    """
+    Randomly choose between balanced and constant oracle types.
+
+    :param seed: Random seed for reproducibility.
+    :return: Random oracle type ('balanced' or 'constant').
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice(["balanced", "constant"])
+
+
+def random_bitstring(n: int, seed: int = None) -> str:
+    """
+    Generate a random non-zero bitstring of length n.
+
+    :param n: Length of the bitstring.
+    :param seed: Random seed for reproducibility.
+    :return: Random bitstring as a string of 0s and 1s.
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Ensure non-zero bitstring for balanced oracle
+    return format(random.randint(1, 2**n - 1), f"0{n}b")
+
+
+def constant_output_choice(seed: int = None) -> int:
+    """
+    Randomly choose between 0 and 1 for constant oracle output.
+
+    :param seed: Random seed for reproducibility.
+    :return: Random constant output (0 or 1).
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice([0, 1])

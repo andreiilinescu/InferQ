@@ -59,6 +59,7 @@ from qiskit.circuit.library import QFT
 # Demo helper — single‑qubit amplitude: |ψ⟩ = cos θ |0⟩ + sin θ |1⟩
 # -----------------------------------------------------------------------------
 
+
 def demo_state_prep(theta: float) -> QuantumCircuit:
     """Return 1‑qubit state‑preparation circuit Ry(2θ)."""
     qc = QuantumCircuit(1, name=f"A(θ={theta:.3f})")
@@ -84,6 +85,7 @@ def demo_grover(theta: float) -> QuantumCircuit:
 # Internal helpers
 # -----------------------------------------------------------------------------
 
+
 def _controlled_power(q: QuantumCircuit, power: int) -> QuantumCircuit:
     """Return `q ** power` **controlled on 1 qubit** (ctrl→target list order)."""
     return q.power(power).control(1)
@@ -99,9 +101,11 @@ def _validate_inputs(
     if m < 1:
         raise ValueError("m (evaluation qubits) must be ≥ 1")
 
-    if (state_preparation is None or grover_operator is None):
+    if state_preparation is None or grover_operator is None:
         if theta is None:
-            raise ValueError("Provide either (state_preparation & grover_operator) or theta for the demo mode")
+            raise ValueError(
+                "Provide either (state_preparation & grover_operator) or theta for the demo mode"
+            )
         # Auto‑build demo circuits (1 qubit)
         state_preparation = demo_state_prep(theta)
         grover_operator = demo_grover(theta)
@@ -110,7 +114,9 @@ def _validate_inputs(
             raise ValueError("theta cannot be combined with explicit circuits")
 
     if state_preparation.num_qubits != grover_operator.num_qubits:
-        raise ValueError("state_preparation and grover_operator must act on the same number of qubits")
+        raise ValueError(
+            "state_preparation and grover_operator must act on the same number of qubits"
+        )
 
     return state_preparation, grover_operator
 
@@ -118,6 +124,7 @@ def _validate_inputs(
 # -----------------------------------------------------------------------------
 # Public API
 # -----------------------------------------------------------------------------
+
 
 def generate(
     *,
@@ -146,7 +153,7 @@ def generate(
 
     # Step 3 ─ apply controlled‑Q^{2^j}
     for j in range(m):
-        power = 2 ** j
+        power = 2**j
         controlled_Q = _controlled_power(Q, power)
         qc.append(controlled_Q, [qr_eval[j], *qr_sys])
 
@@ -173,13 +180,27 @@ if __name__ == "__main__":  # pragma: no cover
     import argparse
     from qiskit.visualization import circuit_drawer
 
-    parser = argparse.ArgumentParser(description="Generate a QAE circuit (Brassard 2002) and save as image.")
+    parser = argparse.ArgumentParser(
+        description="Generate a QAE circuit (Brassard 2002) and save as image."
+    )
     parser.add_argument("m", type=int, help="Number of evaluation qubits")
-    parser.add_argument("--theta", type=float, help="Demo mode: prepare 1‑qubit state Ry(2θ)")
-    parser.add_argument("--outfile", default="amplitude_estimation.svg", help="Output image filename")
+    parser.add_argument(
+        "--theta", type=float, help="Demo mode: prepare 1‑qubit state Ry(2θ)"
+    )
+    parser.add_argument(
+        "--outfile", default="amplitude_estimation.svg", help="Output image filename"
+    )
 
     args = parser.parse_args()
 
     qc_cli = generate(m=args.m, theta=args.theta)
     circuit_drawer(qc_cli, output="mpl", filename=args.outfile, style="iqp")
     print(f"Circuit saved to {args.outfile}")
+
+    # Example usage for testing
+    print("\nExample usage:")
+    qc_example = generate(m=3, theta=0.5)
+    print(f"Generated circuit: {qc_example.name}")
+    print(f"Evaluation qubits: {qc_example.metadata['m_eval_qubits']}")
+    print(f"System qubits: {qc_example.metadata['n_system_qubits']}")
+    print(f"Demo theta: {qc_example.metadata['demo_theta']}")

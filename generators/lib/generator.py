@@ -10,6 +10,8 @@ class BaseParams:
     min_depth: int
     min_reps: int = 1
     max_reps: int = 5
+    min_eval_qubits: int = 2
+    max_eval_qubits: int = 6
     measure: bool = False
     seed: int = None
 
