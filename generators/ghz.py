@@ -10,16 +10,16 @@ class GHZ(Generator):
 
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
+        self.measure = self.base_params.measure
 
-    def generate(self) -> QuantumCircuit:
+    def generate(self, num_qubits: int) -> QuantumCircuit:
         """
         Create an n-qubit GHZ state:
         |GHZ⟩ = (|0…0> + |1…1>)/√2
         """
-        num_qbits = self.generate_parameters()
-        qc = QuantumCircuit(num_qbits, name=f"GHZ({num_qbits})")
+        qc = QuantumCircuit(num_qubits, name=f"GHZ({num_qubits})")
         qc.h(0)
-        for i in range(num_qbits - 1):
+        for i in range(num_qubits - 1):
             qc.cx(i, i + 1)
 
         if self.measure:
@@ -46,5 +46,6 @@ if __name__ == "__main__":
         max_qubits=5, min_qubits=2, max_depth=10, min_depth=1, measure=False
     )
     ghz_generator = GHZ(params)
-    ghz_circuit = ghz_generator.generate()
+    num_qbits = ghz_generator.generate_parameters()
+    ghz_circuit = ghz_generator.generate(num_qbits)
     print(ghz_circuit)

@@ -11,9 +11,8 @@ class GraphState(Generator):
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
 
-    def generate(self) -> QuantumCircuit:
+    def generate(self, adjacency: list[list[int]]) -> QuantumCircuit:
         """Graph state from adjacency matrix."""
-        adjacency = self.generate_parameters()
         n = len(adjacency)
         qc = QuantumCircuit(n, name="GraphState")
         for i in range(n):
@@ -47,5 +46,6 @@ if __name__ == "__main__":
         max_qubits=5, min_qubits=2, max_depth=10, min_depth=1, measure=False
     )
     graph_state_generator = GraphState(params)
-    graph_state_circuit = graph_state_generator.generate()
+    adjacency_matrix = graph_state_generator.generate_parameters()
+    graph_state_circuit = graph_state_generator.generate(adjacency_matrix)
     print(graph_state_circuit)

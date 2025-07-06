@@ -1,10 +1,10 @@
 from .ghz import GHZ
-from .wstate import generate as wstate
+from .wstate import WState, generate as wstate
 from .graph_state import GraphState
-from .random_circuit import generate as random_circuit
-from .effu2 import generate as efficientU2
-from .realampan_rand import generate as get_completed_real_amplitudes_circuit
-from .two_local_rand import generate as get_completed_two_local_circuit
+from .random_circuit import RandomCircuit
+from .effu2 import EfficientU2
+from .realamp_ansatz_rand import RealAmplitudes
+from .two_local_rand import TwoLocal
 
 from .algorithms.amplitude_estimation import generate as amplitude_estimation
 from .algorithms.deutsch_jozsa import generate as deutsch_jozsa
@@ -19,7 +19,7 @@ from .algorithms.qwalk import generate as qwalk
 __all__ = [
     "GHZ",
     "GraphState",
-    "random_circuit",
+    "RandomCircuit",
     "amplitude_estimation",
     "deutsch_jozsa",
     "grover_no_ancilla",
@@ -27,10 +27,11 @@ __all__ = [
     "qaoa",
     "qft",
     "qft_entangled",
+    "WState",
     "wstate",
-    "efficientU2",
-    "get_completed_real_amplitudes_circuit",
-    "get_completed_two_local_circuit",
+    "EfficientU2",
+    "RealAmplitudes",
+    "TwoLocal",
     "qnn",
     "qwalk",
 ]
