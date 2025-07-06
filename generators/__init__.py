@@ -13,7 +13,7 @@ from .algorithms.amplitude_estimation.amplitude_estimation_class import (
 from .algorithms.deutsch_jozsa.deutsch_jozsa_class import DeutschJozsa
 from .algorithms.grover_no_ancilla.grover_no_ancilla_class import GroverNoAncilla
 from .algorithms.grover_v_chain.grover_v_chain_class import GroverVChain
-from .algorithms.qaoa import generate as qaoa
+from .algorithms.qaoa import QAOAGenerator, generate as qaoa
 from .algorithms.qft import QFTGenerator
 from .algorithms.qnn import QNN
 from .algorithms.qwalk import QuantumWalk
@@ -27,6 +27,7 @@ __all__ = [
     "GroverNoAncilla",
     "GroverVChain",
     "QFTGenerator",
+    "QAOAGenerator",
     "QNN",
     "QuantumWalk",
     "qaoa",

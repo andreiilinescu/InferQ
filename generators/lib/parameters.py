@@ -368,3 +368,104 @@ def qwalk_graph_size(num_qubits: int, seed: int = None) -> int:
         random.seed(seed)
     # Reserve 1 qubit for coin, rest for graph nodes
     return max(1, num_qubits - 1)
+
+
+def qaoa_layers(seed: int = None, min_layers: int = 1, max_layers: int = 5) -> int:
+    """
+    Generate a random number of QAOA layers (p).
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_layers: Minimum number of layers.
+        max_layers: Maximum number of layers.
+
+    Returns:
+        int: Number of QAOA layers.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_layers, max_layers)
+
+
+def qaoa_gamma_parameters(p: int, seed: int = None) -> list[float]:
+    """
+    Generate random gamma parameters for QAOA.
+
+    Args:
+        p: Number of QAOA layers.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        list[float]: List of gamma values.
+    """
+    if seed is not None:
+        random.seed(seed)
+    import math
+
+    return [random.uniform(0, math.pi) for _ in range(p)]
+
+
+def qaoa_beta_parameters(p: int, seed: int = None) -> list[float]:
+    """
+    Generate random beta parameters for QAOA.
+
+    Args:
+        p: Number of QAOA layers.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        list[float]: List of beta values.
+    """
+    if seed is not None:
+        random.seed(seed)
+    import math
+
+    return [random.uniform(0, math.pi) for _ in range(p)]
+
+
+def qaoa_adjacency_matrix(
+    num_qubits: int, seed: int = None, edge_prob: float = 0.5
+) -> list[list[float]]:
+    """
+    Generate a random adjacency matrix for QAOA Max-Cut problems.
+
+    Args:
+        num_qubits: Number of qubits (size of adjacency matrix).
+        seed: Random seed for reproducibility.
+        edge_prob: Probability of edge existence.
+
+    Returns:
+        list[list[float]]: Symmetric adjacency matrix with random weights.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    # Initialize matrix with zeros
+    adj = [[0.0 for _ in range(num_qubits)] for _ in range(num_qubits)]
+
+    # Fill upper triangle with random edges
+    for i in range(num_qubits):
+        for j in range(i + 1, num_qubits):
+            if random.random() < edge_prob:
+                # Random weight between 0.1 and 2.0
+                weight = random.uniform(0.1, 2.0)
+                adj[i][j] = weight
+                adj[j][i] = weight  # Symmetric
+
+    return adj
+
+
+def qaoa_problem_type(seed: int = None) -> str:
+    """
+    Generate a random QAOA problem type.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Problem type ('maxcut', 'custom').
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Bias towards MaxCut as it's more common
+    return random.choices(["maxcut", "custom"], weights=[0.8, 0.2])[0]
