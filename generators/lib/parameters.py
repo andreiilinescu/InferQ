@@ -225,3 +225,50 @@ def grover_iterations(n: int, seed: int = None, use_optimal: bool = True) -> int
         # Add some randomness around the optimal value
         variation = max(1, optimal // 4)
         return max(1, optimal + random.randint(-variation, variation))
+
+
+def qft_inverse_flag(seed: int = None) -> bool:
+    """
+    Generate a random boolean flag for QFT inverse mode.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        bool: True for inverse QFT, False for forward QFT.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice([True, False])
+
+
+def qft_swaps_flag(seed: int = None) -> bool:
+    """
+    Generate a random boolean flag for QFT swaps.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        bool: True to include qubit-reversal swaps, False to omit them.
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Bias towards including swaps (more common use case)
+    return random.choices([True, False], weights=[0.8, 0.2])[0]
+
+
+def qft_entanglement_flag(seed: int = None) -> bool:
+    """
+    Generate a random boolean flag for QFT entanglement mode.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        bool: True for entangled QFT, False for regular QFT.
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Bias towards non-entangled (regular QFT is more common)
+    return random.choices([True, False], weights=[0.3, 0.7])[0]

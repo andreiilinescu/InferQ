@@ -14,8 +14,7 @@ from .algorithms.deutsch_jozsa.deutsch_jozsa_class import DeutschJozsa
 from .algorithms.grover_no_ancilla.grover_no_ancilla_class import GroverNoAncilla
 from .algorithms.grover_v_chain.grover_v_chain_class import GroverVChain
 from .algorithms.qaoa import generate as qaoa
-from .algorithms.qft import generate as qft
-from .algorithms.qft_entangled import generate as qft_entangled
+from .algorithms.qft import QFTGenerator
 from .algorithms.qnn import generate as qnn
 from .algorithms.qwalk import generate as qwalk
 
@@ -27,11 +26,9 @@ __all__ = [
     "DeutschJozsa",
     "GroverNoAncilla",
     "GroverVChain",
+    "QFTGenerator",
     "qaoa",
-    "qft",
-    "qft_entangled",
     "WState",
-    "wstate",
     "EfficientU2",
     "RealAmplitudes",
     "TwoLocal",
