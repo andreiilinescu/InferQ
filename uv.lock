@@ -1042,7 +1042,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "qiskit" },
     { name = "qiskit-aer" },
-    { name = "qiskit-algorithms" },
     { name = "requests" },
     { name = "retworkx" },
     { name = "rich" },
@@ -1178,7 +1177,6 @@ requires-dist = [
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "qiskit", specifier = "==2.0.1" },
     { name = "qiskit-aer", specifier = "==0.17.0" },
-    { name = "qiskit-algorithms", specifier = ">=0.3.1" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "retworkx", specifier = "==0.16.0" },
     { name = "rich", specifier = "==14.0.0" },
@@ -2126,20 +2124,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/20/08/9693c54a2148fffc8fe22138ff567276a20564a6519e5930153fb25297fd/qiskit_aer-0.17.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4e755a1eb0ed887eba4122193deadc050e7b6e9a6df3f00a25adaca34099286e", size = 12353412, upload-time = "2025-03-13T11:47:20.409Z" },
     { url = "https://files.pythonhosted.org/packages/59/f7/3006a462a93b8419f1e76c17b8b04ce05eab5bdcb53e9fd02b3102cea8f6/qiskit_aer-0.17.0-cp313-cp313-win32.whl", hash = "sha256:cf2f64421d74a54d3c2887bdaa86105006c3a08b59bd68e5d3f73a43ebc667dd", size = 6900812, upload-time = "2025-03-13T11:47:22.844Z" },
     { url = "https://files.pythonhosted.org/packages/61/78/2bd0bd64c77e0f578567f4a5ebfa2d022fa5185f2a0ea1ff9c737e52627e/qiskit_aer-0.17.0-cp313-cp313-win_amd64.whl", hash = "sha256:569b1a69f2ccd55e79dfb450a808334985c32c8f43b6728aad0b134a43c657e3", size = 9524112, upload-time = "2025-03-13T11:47:24.578Z" },
-]
-
-[[package]]
-name = "qiskit-algorithms"
-version = "0.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "qiskit" },
-    { name = "scipy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/b0/277f075f4758c474f026f2ffc9b6246b2cbe5658fbc95497764834685e15/qiskit_algorithms-0.3.1.tar.gz", hash = "sha256:cba9c573d47c0f9508745a5a2794298084ec4f8833781b426fa9b2cea0fca794", size = 243033, upload-time = "2024-10-21T11:03:21.707Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/20/0db766da89de14111c4a1217dbb67d19036eb3e4ffba0fdc25f00e4d1615/qiskit_algorithms-0.3.1-py3-none-any.whl", hash = "sha256:d6c31d88a1ed65a9c6382c233ef10ecb9562e726f7b1b7823a0d178d63d29a0a", size = 310548, upload-time = "2024-10-21T11:03:19.907Z" },
 ]
 
 [[package]]

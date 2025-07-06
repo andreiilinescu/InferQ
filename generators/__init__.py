@@ -1,6 +1,6 @@
-from .ghz import generate as ghz
+from .ghz import GHZ
 from .wstate import generate as wstate
-from .graph_state import generate as graph_state
+from .graph_state import GraphState
 from .random_circuit import generate as random_circuit
 from .effu2 import generate as efficientU2
 from .realampan_rand import generate as get_completed_real_amplitudes_circuit
@@ -17,8 +17,8 @@ from .algorithms.qnn import generate as qnn
 from .algorithms.qwalk import generate as qwalk
 
 __all__ = [
-    "ghz",
-    "graph_state",
+    "GHZ",
+    "GraphState",
     "random_circuit",
     "amplitude_estimation",
     "deutsch_jozsa",
@@ -32,5 +32,5 @@ __all__ = [
     "get_completed_real_amplitudes_circuit",
     "get_completed_two_local_circuit",
     "qnn",
-    "qwalk"
+    "qwalk",
 ]
