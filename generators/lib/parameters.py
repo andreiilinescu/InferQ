@@ -189,3 +189,39 @@ def constant_output_choice(seed: int = None) -> int:
     if seed is not None:
         random.seed(seed)
     return random.choice([0, 1])
+
+
+def grover_target_bitstring(n: int, seed: int = None) -> str:
+    """
+    Generate a random target bitstring for Grover search.
+
+    :param n: Length of the bitstring.
+    :param seed: Random seed for reproducibility.
+    :return: Random bitstring as a string of 0s and 1s.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return format(random.randrange(2**n), f"0{n}b")
+
+
+def grover_iterations(n: int, seed: int = None, use_optimal: bool = True) -> int:
+    """
+    Generate number of Grover iterations.
+
+    :param n: Number of qubits.
+    :param seed: Random seed for reproducibility.
+    :param use_optimal: If True, use optimal iterations. If False, add some randomness.
+    :return: Number of Grover iterations.
+    """
+    import math
+
+    optimal = int(math.floor((math.pi / 4) * math.sqrt(2**n)))
+
+    if use_optimal:
+        return max(1, optimal)
+    else:
+        if seed is not None:
+            random.seed(seed)
+        # Add some randomness around the optimal value
+        variation = max(1, optimal // 4)
+        return max(1, optimal + random.randint(-variation, variation))

@@ -1,4 +1,9 @@
 from __future__ import annotations
+from typing import Optional
+import random
+import math
+
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 """Grover search circuit generator (V‑chain ancilla mode)
 ========================================================
@@ -28,15 +33,11 @@ Return value is a :class:`qiskit.circuit.QuantumCircuit` with measurement of
 all search qubits.
 """
 
-from typing import Optional
-import random
-import math
-
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 # -----------------------------------------------------------------------------
 # Helper subroutines
 # -----------------------------------------------------------------------------
+
 
 def _apply_mcz_vchain(qc: QuantumCircuit, controls, target, ancilla) -> None:
     """n‑controlled‑Z (phase flip) using V‑chain ancilla construction.
@@ -49,9 +50,10 @@ def _apply_mcz_vchain(qc: QuantumCircuit, controls, target, ancilla) -> None:
     qc.h(target)
 
 
-def _oracle_phase_flip(qc: QuantumCircuit, qr: QuantumRegister, anc: QuantumRegister, *, bitstring: str) -> None:
+def _oracle_phase_flip(
+    qc: QuantumCircuit, qr: QuantumRegister, anc: QuantumRegister, *, bitstring: str
+) -> None:
     """Phase oracle that flips |bitstring⟩ via V‑chain MCZ."""
-    n = len(qr)
     # Transform target state to |11…1⟩ by X on 0‑bits
     for i, bit in enumerate(reversed(bitstring)):
         if bit == "0":
@@ -77,6 +79,7 @@ def _diffuser(qc: QuantumCircuit, qr: QuantumRegister, anc: QuantumRegister) -> 
 # Public API
 # -----------------------------------------------------------------------------
 
+
 def generate(
     *,
     n: int,
@@ -91,13 +94,13 @@ def generate(
 
     # Derive / validate target pattern
     if target is None:
-        target = format(random.randrange(2 ** n), f"0{n}b")
+        target = format(random.randrange(2**n), f"0{n}b")
     if len(target) != n or any(ch not in "01" for ch in target):
         raise ValueError("target must be an n‑length bit‑string of 0/1")
 
     # Optimal iteration count if unspecified
     if iterations is None:
-        iterations = int(math.floor((math.pi / 4) * math.sqrt(2 ** n)))
+        iterations = int(math.floor((math.pi / 4) * math.sqrt(2**n)))
     iterations = max(1, iterations)
 
     # Registers: search qubits + ancillas + classical bits
@@ -113,7 +116,7 @@ def generate(
     for _ in range(iterations):
         _oracle_phase_flip(qc, qr, anc, bitstring=target)
         _diffuser(qc, qr, anc)
-    
+
     if measure:
         # Measure all search qubits
         qc.barrier()
@@ -137,13 +140,19 @@ if __name__ == "__main__":  # pragma: no cover
     import argparse
     from qiskit.visualization import circuit_drawer
 
-    parser = argparse.ArgumentParser(description="Generate Grover V‑chain circuit and save an image.")
+    parser = argparse.ArgumentParser(
+        description="Generate Grover V‑chain circuit and save an image."
+    )
     parser.add_argument("n", type=int, help="Number of search qubits (≥3)")
     parser.add_argument("--target", help="Marked bit‑string; random if omitted")
     parser.add_argument("-k", "--iterations", type=int, help="Grover iteration count")
-    parser.add_argument("--outfile", default="grover_vchain.svg", help="Output image filename")
+    parser.add_argument(
+        "--outfile", default="grover_vchain.svg", help="Output image filename"
+    )
     args = parser.parse_args()
 
-    qc = generate(n=args.n, target=args.target, iterations=args.iterations, measure=True)
+    qc = generate(
+        n=args.n, target=args.target, iterations=args.iterations, measure=True
+    )
     circuit_drawer(qc, output="mpl", filename=args.outfile, style="iqp")
     print(f"Circuit saved to {args.outfile}")

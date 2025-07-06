@@ -1,4 +1,8 @@
 from __future__ import annotations
+from typing import Optional
+import random
+
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 """Deutsch–Jozsa circuit generator
 ==================================
@@ -38,16 +42,15 @@ The ancilla (bottom line) starts in |1⟩, ensuring phase kickback implements
 ``f`` as a phase oracle.
 """
 
-from typing import Optional
-import random
-
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 # -----------------------------------------------------------------------------
 # Helper functions
 # -----------------------------------------------------------------------------
 
-def _balanced_oracle(qc: QuantumCircuit, controls: QuantumRegister, ancilla, *, bitstring: str) -> None:  # noqa: D401
+
+def _balanced_oracle(
+    qc: QuantumCircuit, controls: QuantumRegister, ancilla, *, bitstring: str
+) -> None:  # noqa: D401
     """Append a *balanced* oracle U_f for f(x)=a·x (mod 2).
 
     The oracle flips the ancilla qubit iff the dot‑product of *x* and *a* is 1.
@@ -67,6 +70,7 @@ def _constant_oracle(qc: QuantumCircuit, ancilla, *, output: int) -> None:  # no
 # -----------------------------------------------------------------------------
 # Public API
 # -----------------------------------------------------------------------------
+
 
 def generate(
     *,
@@ -113,7 +117,7 @@ def generate(
     if oracle_type == "balanced":
         if bitstring is None:
             # ensure non‑zero so it is indeed balanced
-            bitstring = format(random.randint(1, 2 ** n - 1), f"0{n}b")
+            bitstring = format(random.randint(1, 2**n - 1), f"0{n}b")
         if len(bitstring) != n or any(ch not in "01" for ch in bitstring):
             raise ValueError("bitstring must be an n‑length string of 0/1")
     else:
@@ -149,7 +153,6 @@ def generate(
         qc.barrier()  # Optional barrier before measurement
         qc.measure(qr, cr)
 
-
     # Attach metadata for later inspection
     qc.metadata = {
         "algorithm": "Deutsch‑Jozsa",
@@ -169,14 +172,39 @@ if __name__ == "__main__":  # pragma: no cover
     import argparse
     from qiskit.visualization import circuit_drawer
 
-    parser = argparse.ArgumentParser(description="Generate a Deutsch–Jozsa circuit and save as image.")
+    parser = argparse.ArgumentParser(
+        description="Generate a Deutsch–Jozsa circuit and save as image."
+    )
     parser.add_argument("n", type=int, help="Number of input qubits")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--balanced", dest="oracle_type", action="store_const", const="balanced", help="Use a balanced oracle (default)")
-    group.add_argument("--constant", dest="oracle_type", action="store_const", const="constant", help="Use a constant oracle")
-    parser.add_argument("--bitstring", help="Bitstring for balanced oracle; random if omitted")
-    parser.add_argument("--const", dest="constant_output", type=int, choices=[0, 1], default=0, help="Constant output value (0 or 1) for constant oracle")
-    parser.add_argument("--outfile", default="dj_circuit.svg", help="Output image filename")
+    group.add_argument(
+        "--balanced",
+        dest="oracle_type",
+        action="store_const",
+        const="balanced",
+        help="Use a balanced oracle (default)",
+    )
+    group.add_argument(
+        "--constant",
+        dest="oracle_type",
+        action="store_const",
+        const="constant",
+        help="Use a constant oracle",
+    )
+    parser.add_argument(
+        "--bitstring", help="Bitstring for balanced oracle; random if omitted"
+    )
+    parser.add_argument(
+        "--const",
+        dest="constant_output",
+        type=int,
+        choices=[0, 1],
+        default=0,
+        help="Constant output value (0 or 1) for constant oracle",
+    )
+    parser.add_argument(
+        "--outfile", default="dj_circuit.svg", help="Output image filename"
+    )
 
     args = parser.parse_args()
     oracle_type = args.oracle_type or "balanced"

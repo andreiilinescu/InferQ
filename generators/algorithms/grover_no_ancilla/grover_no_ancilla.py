@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from typing import Optional
+import random
+import math
+
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
+
 """Grover search (no–ancilla oracle) circuit generator
 =====================================================
 This module exposes a single public :pyfunc:`generate` function that builds a
@@ -30,15 +36,11 @@ simulation or transpilation.  All *n* qubits are measured into an *n*‑bit
 classical register.
 """
 
-from typing import Optional
-import random
-import math
-
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
 # -----------------------------------------------------------------------------
 # Helper subroutines
 # -----------------------------------------------------------------------------
+
 
 def _apply_mcz(qc: QuantumCircuit, qubits) -> None:
     """Apply an n‑qubit controlled‑Z using *no‑ancilla* technique.
@@ -55,7 +57,9 @@ def _apply_mcz(qc: QuantumCircuit, qubits) -> None:
     qc.h(target)
 
 
-def _oracle_phase_flip(qc: QuantumCircuit, qr: QuantumRegister, *, bitstring: str) -> None:
+def _oracle_phase_flip(
+    qc: QuantumCircuit, qr: QuantumRegister, *, bitstring: str
+) -> None:
     """Phase‑flip oracle marking ``|bitstring⟩`` with a −1 phase.
 
     Implementation: X‑transform qubits where target bit is 0 → apply MCZ → undo X.
@@ -87,6 +91,7 @@ def _diffuser(qc: QuantumCircuit, qr: QuantumRegister) -> None:
 # -----------------------------------------------------------------------------
 # Public API
 # -----------------------------------------------------------------------------
+
 
 def generate(
     *,
@@ -121,12 +126,12 @@ def generate(
         raise ValueError("n must be between 1 and 8 for the no‑ancilla MCX gate")
 
     if target is None:
-        target = format(random.randrange(2 ** n), f"0{n}b")
+        target = format(random.randrange(2**n), f"0{n}b")
     if len(target) != n or any(ch not in "01" for ch in target):
         raise ValueError("target must be an n‑length bit‑string of 0/1")
 
     if iterations is None:
-        iterations = int(math.floor((math.pi / 4) * math.sqrt(2 ** n)))
+        iterations = int(math.floor((math.pi / 4) * math.sqrt(2**n)))
     if iterations < 1:
         iterations = 1  # minimal useful iteration
 
@@ -162,13 +167,21 @@ if __name__ == "__main__":  # pragma: no cover
     import argparse
     from qiskit.visualization import circuit_drawer
 
-    parser = argparse.ArgumentParser(description="Generate a Grover circuit (no ancilla) and save as image.")
+    parser = argparse.ArgumentParser(
+        description="Generate a Grover circuit (no ancilla) and save as image."
+    )
     parser.add_argument("n", type=int, help="Number of search qubits (1‑8)")
     parser.add_argument("--target", help="Marked bit‑string; random if omitted")
-    parser.add_argument("-k", "--iterations", type=int, help="Number of Grover iterations")
-    parser.add_argument("--outfile", default="grover_noanc.svg", help="Output image filename")
+    parser.add_argument(
+        "-k", "--iterations", type=int, help="Number of Grover iterations"
+    )
+    parser.add_argument(
+        "--outfile", default="grover_noanc.svg", help="Output image filename"
+    )
 
     args = parser.parse_args()
-    qc = generate(n=args.n, target=args.target, iterations=args.iterations, measure=True)
+    qc = generate(
+        n=args.n, target=args.target, iterations=args.iterations, measure=True
+    )
     circuit_drawer(qc, output="mpl", filename=args.outfile, style="iqp")
     print(f"Circuit saved to {args.outfile}")

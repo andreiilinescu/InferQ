@@ -1,4 +1,8 @@
 from __future__ import annotations
+from typing import Optional, Tuple
+
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
+from qiskit.circuit.library import QFT
 
 """Quantum Amplitude Estimation circuit generator
 =================================================
@@ -48,12 +52,6 @@ Returns
 :class:`qiskit.circuit.QuantumCircuit` – complete AE circuit with an ``m``‑bit
 classical register holding the inverse‑QFT output.
 """
-
-from typing import Optional, Tuple
-import math
-
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
-from qiskit.circuit.library import QFT
 
 # -----------------------------------------------------------------------------
 # Demo helper — single‑qubit amplitude: |ψ⟩ = cos θ |0⟩ + sin θ |1⟩
