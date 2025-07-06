@@ -1,4 +1,18 @@
 from __future__ import annotations
+from typing import Optional
+import math
+
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
+from qiskit.circuit import Gate
+from qiskit.circuit.library import QFT
+from generators.lib.generator import Generator, BaseParams
+from generators.lib.parameters import (
+    num_qbits,
+    qpe_evaluation_qubits,
+    qpe_approximation_degree,
+    qpe_eigenphase_value,
+    qpe_system_qubits,
+)
 
 """Approximate / *inexact* Quantum Phase Estimation (QPE) generator
 ===================================================================
@@ -41,12 +55,6 @@ Parameters
 Returns :class:`qiskit.circuit.QuantumCircuit` (m + n qubits).
 """
 
-from typing import Optional
-
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
-from qiskit.circuit import Gate
-from qiskit.circuit.library import QFT
-
 # -----------------------------------------------------------------------------
 # Demo helper – prepare |1⟩ for single‑qubit Z‑family gates
 # -----------------------------------------------------------------------------
@@ -75,103 +83,199 @@ def _controlled_power(U: Gate, power: int) -> Gate:
     return U.power(power).control(1)
 
 
-# -----------------------------------------------------------------------------
-# Public API
-# -----------------------------------------------------------------------------
+class QPE(Generator):
+    """
+    Class to generate a Quantum Phase Estimation circuit.
+    """
 
+    def __init__(self, base_params: BaseParams):
+        super().__init__(base_params)
+        self.measure = True  # QPE always requires measurement
 
-def generate(
-    *,
-    m: int,
-    unitary,
-    prepare_eigenstate: QuantumCircuit,
-    approximation_degree: int = 1,
-    measure: bool = True,
-    name: Optional[str] = None,
-) -> QuantumCircuit:
-    """Build an *approximate* QPE circuit with truncated inverse QFT."""
+    def generate(
+        self,
+        m: int,
+        n_sys: int = 1,
+        approximation_degree: int = 1,
+        eigenphase: float = 0.25,
+        unitary: Optional[Gate] = None,
+        prepare_eigenstate: Optional[QuantumCircuit] = None,
+        name: Optional[str] = None,
+    ) -> QuantumCircuit:
+        """
+        Generate a Quantum Phase Estimation circuit.
 
-    if m < 1:
-        raise ValueError("m must be ≥ 1")
-    if approximation_degree < 0:
-        raise ValueError("approximation_degree must be ≥ 0")
+        Args:
+            m (int): Number of evaluation qubits (≥ 1).
+            n_sys (int): Number of system qubits.
+            approximation_degree (int): QFT approximation degree.
+            eigenphase (float): Eigenphase value for demo mode.
+            unitary (Optional[Gate]): Custom unitary operator.
+            prepare_eigenstate (Optional[QuantumCircuit]): Custom eigenstate preparation.
+            name (Optional[str]): Optional circuit name.
 
-    U_gate = _as_gate(unitary)
-    n_sys = prepare_eigenstate.num_qubits
-    if U_gate.num_qubits != n_sys:
-        raise ValueError("unitary and eigenstate prep must act on same #qubits")
+        Returns:
+            QuantumCircuit: The generated QPE circuit.
+        """
+        if m < 1:
+            raise ValueError("m must be ≥ 1")
+        if approximation_degree < 0:
+            raise ValueError("approximation_degree must be ≥ 0")
 
-    # Registers
-    qr_eval = QuantumRegister(m, "qpe")
-    qr_sys = QuantumRegister(n_sys, "sys")
-    cr_eval = ClassicalRegister(m, "c") if measure else None
-    qc = (
-        QuantumCircuit(qr_eval, qr_sys, cr_eval)
-        if cr_eval
-        else QuantumCircuit(qr_eval, qr_sys)
-    )
-    qc.name = name or f"QPE_inexact_deg{approximation_degree}"
+        # Create default unitary and eigenstate if not provided
+        if unitary is None:
+            unitary = self._create_demo_unitary(eigenphase, n_sys)
+        if prepare_eigenstate is None:
+            prepare_eigenstate = self._create_demo_eigenstate(n_sys)
 
-    # 1) Eigenstate preparation
-    qc.append(prepare_eigenstate.to_gate(label="Prep|ψ⟩"), qr_sys)
+        U_gate = _as_gate(unitary)
+        if U_gate.num_qubits != n_sys:
+            raise ValueError("unitary and eigenstate prep must act on same #qubits")
 
-    # 2) Hadamard layer
-    qc.h(qr_eval)
+        # Registers
+        qr_eval = QuantumRegister(m, "qpe")
+        qr_sys = QuantumRegister(n_sys, "sys")
+        cr_eval = ClassicalRegister(m, "c")
+        qc = QuantumCircuit(qr_eval, qr_sys, cr_eval)
+        qc.name = name or f"QPE({m}eval,{n_sys}sys,deg{approximation_degree})"
 
-    # 3) Controlled‑powers of U
-    for j in range(m):
-        power = 2**j
-        qc.append(_controlled_power(U_gate, power), [qr_eval[j], *qr_sys])
+        # 1) Eigenstate preparation
+        qc.append(prepare_eigenstate.to_gate(label="Prep|ψ⟩"), qr_sys)
 
-    # 4) Approximate inverse QFT
-    qft_inv = QFT(
-        num_qubits=m,
-        approximation_degree=approximation_degree,
-        inverse=True,
-        do_swaps=False,
-        name="QFT†~",
-    )
-    qc.append(qft_inv, qr_eval)
+        # 2) Hadamard layer
+        qc.h(qr_eval)
 
-    # 5) Measurement
-    if measure:
+        # 3) Controlled‑powers of U
+        for j in range(m):
+            power = 2**j
+            qc.append(_controlled_power(U_gate, power), [qr_eval[j], *qr_sys])
+
+        # 4) Approximate inverse QFT
+        qft_inv = QFT(
+            num_qubits=m,
+            approximation_degree=approximation_degree,
+            inverse=True,
+            do_swaps=False,
+            name="QFT†~",
+        )
+        qc.append(qft_inv, qr_eval)
+
+        # 5) Measurement
         qc.barrier()
         qc.measure(qr_eval, cr_eval)  # type: ignore[arg-type]
 
-    qc.metadata = {
-        "algorithm": "InexactQPE",
-        "m_eval": m,
-        "n_system": n_sys,
-        "approx_deg": approximation_degree,
-        "measured": measure,
-    }
-    return qc
+        # Metadata
+        qc.metadata = {
+            "algorithm": "InexactQPE",
+            "m_eval": m,
+            "n_system": n_sys,
+            "approx_deg": approximation_degree,
+            "eigenphase": eigenphase,
+            "measured": True,
+        }
+
+        return qc
+
+    def _create_demo_unitary(self, eigenphase: float, n_sys: int) -> Gate:
+        """Create a demo unitary for the given eigenphase."""
+        # Create a simple RZ rotation unitary using standard circuit methods
+        qc = QuantumCircuit(n_sys)
+        qc.rz(2 * math.pi * eigenphase, 0)  # Apply phase to first qubit
+        return qc.to_gate()
+
+    def _create_demo_eigenstate(self, n_sys: int) -> QuantumCircuit:
+        """Create a demo eigenstate preparation circuit."""
+        qc = QuantumCircuit(n_sys, name="|ψ⟩ prep")
+        qc.x(0)  # Prepare |1⟩ for first qubit (eigenstate of RZ)
+        return qc
+
+    def generate_parameters(self) -> tuple[int, int, int, float]:
+        """
+        Generate parameters for the QPE circuit.
+
+        Returns:
+            tuple: (m_eval, n_sys, approximation_degree, eigenphase)
+        """
+        # Calculate available qubits for evaluation vs system
+        total_qubits = num_qbits(
+            self.base_params.min_qubits,
+            self.base_params.max_qubits,
+            self.base_params.seed,
+        )
+
+        # Reserve at least 1 system qubit, rest for evaluation
+        max_sys = min(3, total_qubits - 2)  # Keep some qubits for evaluation
+        self.n_sys = qpe_system_qubits(self.base_params.seed, 1, max(1, max_sys))
+
+        # Remaining qubits for evaluation
+        max_eval = total_qubits - self.n_sys
+        self.m_eval = qpe_evaluation_qubits(
+            self.base_params.seed, min_eval=2, max_eval=max(2, max_eval)
+        )
+
+        # If total exceeds available, adjust
+        if self.m_eval + self.n_sys > total_qubits:
+            self.m_eval = total_qubits - self.n_sys
+
+        self.approximation_degree = qpe_approximation_degree(self.base_params.seed)
+        self.eigenphase = qpe_eigenphase_value(self.base_params.seed)
+
+        return self.m_eval, self.n_sys, self.approximation_degree, self.eigenphase
 
 
 # -----------------------------------------------------------------------------
-# CLI helper -------------------------------------------------------------------
+# Example usage for class-based approach
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
-    import argparse, math
-    from qiskit.circuit.library import RZ
-    from qiskit.visualization import circuit_drawer
+    # Example usage of QPEGenerator class
+    print("Example using QPEGenerator class:")
+    from generators.lib.generator import BaseParams
 
-    parser = argparse.ArgumentParser(
-        description="Generate an inexact QPE circuit and save SVG."
+    # Create base parameters
+    params = BaseParams(
+        max_qubits=8, min_qubits=4, max_depth=1, min_depth=1, measure=True, seed=42
     )
-    parser.add_argument("m", type=int, help="Evaluation qubits")
-    parser.add_argument(
-        "--phi", type=float, default=0.34375, help="Eigen‑phase φ in [0,1)"
-    )
-    parser.add_argument("--deg", type=int, default=1, help="Approximation degree (≥0)")
-    parser.add_argument("--outfile", default="qpe_inexact.svg", help="Output filename")
-    args = parser.parse_args()
 
-    U_demo = RZ(2 * math.pi * args.phi)
-    qc_cli = generate(
-        m=args.m,
-        unitary=U_demo,
-        prepare_eigenstate=demo_state_prep(),
-        approximation_degree=args.deg,
+    # Create QPE generator
+    qpe_gen = QPE(params)
+
+    # Generate parameters
+    m_eval, n_sys, approx_deg, eigenphase = qpe_gen.generate_parameters()
+    print("Generated parameters:")
+    print(f"  - Evaluation qubits: {m_eval}")
+    print(f"  - System qubits: {n_sys}")
+    print(f"  - Approximation degree: {approx_deg}")
+    print(f"  - Eigenphase: {eigenphase:.4f}")
+
+    # Generate QPE circuit with default demo unitary
+    qpe_circuit = qpe_gen.generate(
+        m=m_eval, n_sys=n_sys, approximation_degree=approx_deg, eigenphase=eigenphase
     )
-    circuit_drawer(qc_cli, output="mpl", filename=args.outfile, style="iqp")
-    print(f"Saved to {args.outfile}")
+    print(f"\nGenerated circuit: {qpe_circuit.name}")
+    print(f"Total qubits: {qpe_circuit.num_qubits}")
+    print(f"Circuit depth: {qpe_circuit.depth()}")
+    print(f"Metadata: {qpe_circuit.metadata}")
+
+    # Example with custom unitary
+    print("\n" + "=" * 60)
+    print("Example with custom unitary:")
+
+    custom_eigenphase = 0.34375  # 44/128
+    # Create custom unitary using QuantumCircuit.rz instead of RZ from library
+    custom_unitary_qc = QuantumCircuit(1)
+    custom_unitary_qc.rz(2 * math.pi * custom_eigenphase, 0)
+    custom_unitary = custom_unitary_qc.to_gate()
+    custom_eigenstate = demo_state_prep()
+
+    qpe_circuit_custom = qpe_gen.generate(
+        m=5,
+        n_sys=1,
+        approximation_degree=2,
+        eigenphase=custom_eigenphase,
+        unitary=custom_unitary,
+        prepare_eigenstate=custom_eigenstate,
+        name="CustomQPE",
+    )
+    print(f"Custom circuit: {qpe_circuit_custom.name}")
+    print(f"Custom circuit qubits: {qpe_circuit_custom.num_qubits}")
+    print(f"Custom circuit depth: {qpe_circuit_custom.depth()}")

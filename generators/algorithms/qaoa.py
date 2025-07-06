@@ -78,7 +78,7 @@ Exactly **one** of ``adjacency`` XOR ``cost_layer`` must be supplied.
 """
 
 
-class QAOAGenerator(Generator):
+class QAOA(Generator):
     """
     Class to generate a QAOA (Quantum Approximate Optimization Algorithm) circuit.
     """
@@ -283,7 +283,7 @@ def generate(
         max_qubits=n, min_qubits=n, max_depth=p, min_depth=p, measure=measure, seed=None
     )
 
-    qaoa_gen = QAOAGenerator(params)
+    qaoa_gen = QAOA(params)
     return qaoa_gen.generate(
         n, p, adjacency, cost_layer, mixer_layer, gammas, betas, name
     )
@@ -327,7 +327,7 @@ if __name__ == "__main__":  # pragma: no cover
         seed=42,
     )
 
-    qaoa_gen = QAOAGenerator(params)
+    qaoa_gen = QAOA(params)
     num_qubits, p_layers, adjacency = qaoa_gen.generate_parameters()
     qc_class = qaoa_gen.generate(num_qubits, p_layers, adjacency=adjacency)
     circuit_drawer(qc_class, output="mpl", filename=args.outfile, style="iqp")

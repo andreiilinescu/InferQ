@@ -469,3 +469,78 @@ def qaoa_problem_type(seed: int = None) -> str:
         random.seed(seed)
     # Bias towards MaxCut as it's more common
     return random.choices(["maxcut", "custom"], weights=[0.8, 0.2])[0]
+
+
+def qpe_evaluation_qubits(
+    seed: int = None, min_eval: int = 2, max_eval: int = 8
+) -> int:
+    """
+    Generate a random number of evaluation qubits for QPE.
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_eval: Minimum number of evaluation qubits.
+        max_eval: Maximum number of evaluation qubits.
+
+    Returns:
+        int: Number of evaluation qubits.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_eval, max_eval)
+
+
+def qpe_approximation_degree(seed: int = None, max_degree: int = 5) -> int:
+    """
+    Generate a random approximation degree for QPE QFT.
+
+    Args:
+        seed: Random seed for reproducibility.
+        max_degree: Maximum approximation degree.
+
+    Returns:
+        int: Approximation degree (0 = exact, higher = more approximation).
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Bias towards lower degrees (0-2 are most common)
+    weights = [0.3, 0.3, 0.2] + [0.2 / (max_degree - 2)] * max(0, max_degree - 2)
+    degrees = list(range(max_degree + 1))
+    return random.choices(degrees, weights=weights[: len(degrees)])[0]
+
+
+def qpe_eigenphase_value(seed: int = None) -> float:
+    """
+    Generate a random eigenphase value for QPE demo.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        float: Eigenphase value in [0, 1).
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Generate a phase that's likely to be representable with limited precision
+    # Use fractions with small denominators for better QPE results
+    denominators = [2, 4, 8, 16, 32, 64, 128, 256]
+    denom = random.choice(denominators)
+    numerator = random.randint(1, denom - 1)
+    return numerator / denom
+
+
+def qpe_system_qubits(seed: int = None, min_sys: int = 1, max_sys: int = 3) -> int:
+    """
+    Generate a random number of system qubits for QPE.
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_sys: Minimum number of system qubits.
+        max_sys: Maximum number of system qubits.
+
+    Returns:
+        int: Number of system qubits.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_sys, max_sys)
