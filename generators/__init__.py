@@ -16,7 +16,7 @@ from .algorithms.grover_v_chain.grover_v_chain_class import GroverVChain
 from .algorithms.qaoa import generate as qaoa
 from .algorithms.qft import QFTGenerator
 from .algorithms.qnn import QNN
-from .algorithms.qwalk import generate as qwalk
+from .algorithms.qwalk import QuantumWalk
 
 __all__ = [
     "GHZ",
@@ -28,10 +28,10 @@ __all__ = [
     "GroverVChain",
     "QFTGenerator",
     "QNN",
+    "QuantumWalk",
     "qaoa",
     "WState",
     "EfficientU2",
     "RealAmplitudes",
     "TwoLocal",
-    "qwalk",
 ]

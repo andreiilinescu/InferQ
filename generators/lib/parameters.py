@@ -319,3 +319,52 @@ def qnn_reps(seed: int = None, min_reps: int = 1, max_reps: int = 3) -> int:
     if seed is not None:
         random.seed(seed)
     return random.randint(min_reps, max_reps)
+
+
+def qwalk_steps(seed: int = None, min_steps: int = 1, max_steps: int = 10) -> int:
+    """
+    Generate a random number of quantum walk steps.
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_steps: Minimum number of steps.
+        max_steps: Maximum number of steps.
+
+    Returns:
+        int: Number of quantum walk steps.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_steps, max_steps)
+
+
+def qwalk_coin_preparation_type(seed: int = None) -> str:
+    """
+    Generate a random coin state preparation type for quantum walk.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Coin preparation type ('hadamard', 'x', 'y', 'none').
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice(["hadamard", "x", "y", "none"])
+
+
+def qwalk_graph_size(num_qubits: int, seed: int = None) -> int:
+    """
+    Generate graph size for quantum walk (number of graph nodes).
+
+    Args:
+        num_qubits: Total number of qubits available.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        int: Number of graph nodes (num_qubits - 1 for coin qubit).
+    """
+    if seed is not None:
+        random.seed(seed)
+    # Reserve 1 qubit for coin, rest for graph nodes
+    return max(1, num_qubits - 1)
