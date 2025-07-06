@@ -272,3 +272,50 @@ def qft_entanglement_flag(seed: int = None) -> bool:
         random.seed(seed)
     # Bias towards non-entangled (regular QFT is more common)
     return random.choices([True, False], weights=[0.3, 0.7])[0]
+
+
+def qnn_feature_map_type(seed: int = None) -> str:
+    """
+    Generate a random feature map type for QNN.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Feature map type ('ZFeatureMap', 'ZZFeatureMap', 'PauliFeatureMap').
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice(["ZFeatureMap", "ZZFeatureMap", "PauliFeatureMap"])
+
+
+def qnn_ansatz_type(seed: int = None) -> str:
+    """
+    Generate a random ansatz type for QNN.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Ansatz type ('RealAmplitudes', 'EfficientSU2', 'TwoLocal').
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.choice(["RealAmplitudes", "EfficientSU2", "TwoLocal"])
+
+
+def qnn_reps(seed: int = None, min_reps: int = 1, max_reps: int = 3) -> int:
+    """
+    Generate a random number of repetitions for QNN ansatz.
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_reps: Minimum number of repetitions.
+        max_reps: Maximum number of repetitions.
+
+    Returns:
+        int: Number of repetitions.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_reps, max_reps)

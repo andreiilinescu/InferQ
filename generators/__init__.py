@@ -15,7 +15,7 @@ from .algorithms.grover_no_ancilla.grover_no_ancilla_class import GroverNoAncill
 from .algorithms.grover_v_chain.grover_v_chain_class import GroverVChain
 from .algorithms.qaoa import generate as qaoa
 from .algorithms.qft import QFTGenerator
-from .algorithms.qnn import generate as qnn
+from .algorithms.qnn import QNN
 from .algorithms.qwalk import generate as qwalk
 
 __all__ = [
@@ -27,11 +27,11 @@ __all__ = [
     "GroverNoAncilla",
     "GroverVChain",
     "QFTGenerator",
+    "QNN",
     "qaoa",
     "WState",
     "EfficientU2",
     "RealAmplitudes",
     "TwoLocal",
-    "qnn",
     "qwalk",
 ]
