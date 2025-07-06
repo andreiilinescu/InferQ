@@ -18,6 +18,7 @@ from .algorithms.qft import QFTGenerator
 from .algorithms.qnn import QNN
 from .algorithms.qwalk import QuantumWalk
 from .algorithms.qpe import QPE
+from .algorithms.vqe import VQEGenerator
 
 __all__ = [
     "GHZ",
@@ -36,4 +37,5 @@ __all__ = [
     "RealAmplitudes",
     "TwoLocal",
     "QPE",
+    "VQEGenerator",
 ]

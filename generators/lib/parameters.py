@@ -544,3 +544,72 @@ def qpe_system_qubits(seed: int = None, min_sys: int = 1, max_sys: int = 3) -> i
     if seed is not None:
         random.seed(seed)
     return random.randint(min_sys, max_sys)
+
+
+def vqe_ansatz_type(seed: int = None) -> str:
+    """
+    Generate a random ansatz type for VQE.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Ansatz type ('real_amplitudes', 'efficient_su2', 'two_local', 'su2').
+    """
+    if seed is not None:
+        random.seed(seed)
+    ansatz_types = ["real_amplitudes", "efficient_su2", "two_local", "su2"]
+    return random.choice(ansatz_types)
+
+
+def vqe_reps(seed: int = None, min_reps: int = 1, max_reps: int = 4) -> int:
+    """
+    Generate a random number of repetitions for VQE ansatz.
+
+    Args:
+        seed: Random seed for reproducibility.
+        min_reps: Minimum number of repetitions.
+        max_reps: Maximum number of repetitions.
+
+    Returns:
+        int: Number of repetitions.
+    """
+    if seed is not None:
+        random.seed(seed)
+    return random.randint(min_reps, max_reps)
+
+
+def vqe_entanglement_pattern(seed: int = None) -> str:
+    """
+    Generate a random entanglement pattern for VQE ansatz.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Entanglement pattern ('full', 'linear', 'circular', 'pairwise').
+    """
+    if seed is not None:
+        random.seed(seed)
+    patterns = ["full", "linear", "circular", "pairwise"]
+    # Bias towards 'full' as it's most common
+    weights = [0.4, 0.2, 0.2, 0.2]
+    return random.choices(patterns, weights=weights)[0]
+
+
+def vqe_parameter_prefix(seed: int = None) -> str:
+    """
+    Generate a random parameter prefix for VQE.
+
+    Args:
+        seed: Random seed for reproducibility.
+
+    Returns:
+        str: Parameter prefix ('θ', 'phi', 'alpha', 'beta').
+    """
+    if seed is not None:
+        random.seed(seed)
+    prefixes = ["θ", "phi", "alpha", "beta"]
+    # Bias towards 'θ' as it's most common
+    weights = [0.5, 0.2, 0.15, 0.15]
+    return random.choices(prefixes, weights=weights)[0]
