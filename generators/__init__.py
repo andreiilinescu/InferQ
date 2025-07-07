@@ -1,10 +1,10 @@
-from .ghz import GHZ
-from .wstate import WState
-from .graph_state import GraphState
-from .random_circuit import RandomCircuit
-from .effu2 import EfficientU2
-from .realamp_ansatz_rand import RealAmplitudes
-from .two_local_rand import TwoLocal
+from .state_prep_circuits.ghz import GHZ
+from .state_prep_circuits.wstate import WState
+from .state_prep_circuits.graph_state import GraphState
+from .state_prep_circuits.random_circuit import RandomCircuit
+from .state_prep_circuits.effu2 import EfficientU2
+from .state_prep_circuits.realamp_ansatz_rand import RealAmplitudes
+from .state_prep_circuits.two_local_rand import TwoLocal
 
 
 from .algorithms.amplitude_estimation.amplitude_estimation_class import (

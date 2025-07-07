@@ -1,5 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
+from qiskit import QuantumCircuit
 
 
 @dataclass
@@ -29,12 +30,20 @@ class Generator(ABC):
         """
         self.base_params = base_params
 
-    def generate(self, *args, **kwargs):
+    def generate(self, *args, **kwargs) -> QuantumCircuit | None:
         """
         Generate content based on the provided arguments.
 
         :param args: Positional arguments for generation.
         :param kwargs: Keyword arguments for generation.
         :return: Generated content.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def generate_parameters(self) -> tuple:
+        """
+        Generate parameters for the generator.
+
+        :return: Parameters for the generator.
         """
         raise NotImplementedError("Subclasses must implement this method.")

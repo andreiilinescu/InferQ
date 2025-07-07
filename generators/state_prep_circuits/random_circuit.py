@@ -20,7 +20,7 @@ class RandomCircuit(Generator):
         qc.name = f"RandomCircuit{width}x{depth}"
         return qc
 
-    def generate_parameters(self) -> int:
+    def generate_parameters(self) -> tuple[int, int]:
         """Generate the number of qubits for the random circuit."""
         self.num_qubits = num_qbits(
             self.base_params.min_qubits,
