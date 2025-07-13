@@ -428,6 +428,7 @@ def qaoa_adjacency_matrix(
 ) -> list[list[float]]:
     """
     Generate a random adjacency matrix for QAOA Max-Cut problems.
+    Guarantees at least one edge exists (never all zeros).
 
     Args:
         num_qubits: Number of qubits (size of adjacency matrix).
@@ -444,6 +445,7 @@ def qaoa_adjacency_matrix(
     adj = [[0.0 for _ in range(num_qubits)] for _ in range(num_qubits)]
 
     # Fill upper triangle with random edges
+    has_edge = False
     for i in range(num_qubits):
         for j in range(i + 1, num_qubits):
             if random.random() < edge_prob:
@@ -451,6 +453,16 @@ def qaoa_adjacency_matrix(
                 weight = random.uniform(0.1, 2.0)
                 adj[i][j] = weight
                 adj[j][i] = weight  # Symmetric
+                has_edge = True
+
+    # Ensure at least one edge exists (never all zeros)
+    if not has_edge and num_qubits > 1:
+        # Add a random edge between two random nodes
+        i = random.randint(0, num_qubits - 2)
+        j = random.randint(i + 1, num_qubits - 1)
+        weight = random.uniform(0.1, 2.0)
+        adj[i][j] = weight
+        adj[j][i] = weight
 
     return adj
 

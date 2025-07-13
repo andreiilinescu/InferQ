@@ -20,6 +20,8 @@ from .algorithms.qwalk import QuantumWalk
 from .algorithms.qpe import QPE
 from .algorithms.vqe import VQEGenerator
 
+from .circuit_merger import CircuitMerger
+
 __all__ = [
     "GHZ",
     "GraphState",
@@ -38,4 +40,5 @@ __all__ = [
     "TwoLocal",
     "QPE",
     "VQEGenerator",
+    "CircuitMerger",
 ]

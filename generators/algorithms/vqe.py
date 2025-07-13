@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, List, Optional, Union
+from typing import List, Optional, Union
 
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.circuit import Parameter
@@ -107,7 +107,7 @@ class VQEGenerator(Generator):
         parameter_prefix: str = "θ",
         measure: Optional[bool] = None,
         name: Optional[str] = None,
-    ) -> Tuple[QuantumCircuit, List[Parameter]]:
+    ) -> QuantumCircuit:
         """Generate a VQE ansatz circuit.
 
         Args:
@@ -125,15 +125,65 @@ class VQEGenerator(Generator):
         if measure is None:
             measure = self.measure
 
-        return generate(
-            n=n,
-            ansatz=ansatz,
-            reps=reps,
-            entanglement=entanglement,
-            parameter_prefix=parameter_prefix,
-            measure=measure,
-            name=name,
-        )
+        if n < 1:
+            raise ValueError("n must be ≥ 1")
+        if reps < 1:
+            raise ValueError("reps must be ≥ 1")
+
+        # ------------------------------------------------------------------
+        # Build / validate ansatz template
+        # ------------------------------------------------------------------
+        if isinstance(ansatz, QuantumCircuit):
+            template: QuantumCircuit = ansatz
+        else:
+            key = ansatz.lower()
+            if key not in _ANSATZ_MAP:
+                raise ValueError(
+                    f"Unknown ansatz '{ansatz}'. Choose from {list(_ANSATZ_MAP)} or supply a circuit."
+                )
+            cls = _ANSATZ_MAP[key]
+            if issubclass(cls, NLocal):
+                template = cls(
+                    num_qubits=n,
+                    reps=reps,
+                    entanglement=entanglement,
+                    parameter_prefix=parameter_prefix,
+                )
+            else:  # pragma: no cover – all mapped classes are NLocal
+                template = cls(
+                    num_qubits=n,
+                    reps=reps,
+                    entanglement=entanglement,
+                    parameter_prefix=parameter_prefix,
+                )
+
+        params: List[Parameter] = list(template.parameters)
+
+        # ------------------------------------------------------------------
+        # Wrap into outer circuit with measurement (optional)
+        # ------------------------------------------------------------------
+        qr = QuantumRegister(n, "q")
+        cr = ClassicalRegister(n, "c") if measure else None
+        qc = QuantumCircuit(qr, cr) if cr else QuantumCircuit(qr)
+        qc.name = name or f"VQE_{template.name}"  # type: ignore[attr-defined]
+
+        qc.append(template.to_gate(label=template.name), qr)
+
+        if measure:
+            qc.barrier()
+            qc.measure(qr, cr)  # type: ignore[arg-type]
+
+        qc.metadata = {
+            "algorithm": "VQE_ansatz",
+            "n_qubits": n,
+            "ansatz": template.name,  # type: ignore[attr-defined]
+            "reps": reps,
+            "entanglement": entanglement,
+            "param_count": len(params),
+            "measured": measure,
+        }
+
+        return qc
 
     def generate_parameters(self) -> dict:
         """Generate parameters for the VQE circuit using base_params.
@@ -164,110 +214,6 @@ class VQEGenerator(Generator):
 
 
 # -----------------------------------------------------------------------------
-# Public API
-# -----------------------------------------------------------------------------
-
-
-def generate(
-    *,
-    n: int,
-    ansatz: Union[str, QuantumCircuit] = "real_amplitudes",
-    reps: int = 1,
-    entanglement: Union[str, List[str]] = "full",
-    parameter_prefix: str = "θ",
-    measure: bool = True,
-    name: Optional[str] = None,
-) -> Tuple[QuantumCircuit, List[Parameter]]:  # noqa: D401
-    """Build and return a parameterised ansatz circuit for VQE.
-
-    Parameters
-    ----------
-    n
-        Number of qubits.
-    ansatz
-        Either a string key (see docs) or a pre‑built QuantumCircuit.
-    reps
-        Number of repeated layers in the ansatz template (ignored if
-        ``ansatz`` is a circuit).
-    entanglement
-        Entanglement pattern recognised by Qiskit templates (``"full"``,
-        ``"linear"``, ``"circular"`` …) or explicit list of cNOT pairs.
-    parameter_prefix
-        Prefix for automatic :class:`Parameter` symbol names.
-    measure
-        If ``True`` append an ``n``‑bit classical register and measure all
-        qubits so the circuit is runnable on hardware.
-    name
-        Optional circuit name.
-
-    Returns
-    -------
-    (QuantumCircuit, list[Parameter])
-        The ansatz circuit plus *ordered* list of its parameters.
-    """
-
-    if n < 1:
-        raise ValueError("n must be ≥ 1")
-    if reps < 1:
-        raise ValueError("reps must be ≥ 1")
-
-    # ------------------------------------------------------------------
-    # Build / validate ansatz template
-    # ------------------------------------------------------------------
-    if isinstance(ansatz, QuantumCircuit):
-        template: QuantumCircuit = ansatz
-    else:
-        key = ansatz.lower()
-        if key not in _ANSATZ_MAP:
-            raise ValueError(
-                f"Unknown ansatz '{ansatz}'. Choose from {list(_ANSATZ_MAP)} or supply a circuit."
-            )
-        cls = _ANSATZ_MAP[key]
-        if issubclass(cls, NLocal):
-            template = cls(
-                num_qubits=n,
-                reps=reps,
-                entanglement=entanglement,
-                parameter_prefix=parameter_prefix,
-            )
-        else:  # pragma: no cover – all mapped classes are NLocal
-            template = cls(
-                num_qubits=n,
-                reps=reps,
-                entanglement=entanglement,
-                parameter_prefix=parameter_prefix,
-            )
-
-    params: List[Parameter] = list(template.parameters)
-
-    # ------------------------------------------------------------------
-    # Wrap into outer circuit with measurement (optional)
-    # ------------------------------------------------------------------
-    qr = QuantumRegister(n, "q")
-    cr = ClassicalRegister(n, "c") if measure else None
-    qc = QuantumCircuit(qr, cr) if cr else QuantumCircuit(qr)
-    qc.name = name or f"VQE_{template.name}"  # type: ignore[attr-defined]
-
-    qc.append(template.to_gate(label=template.name), qr)
-
-    if measure:
-        qc.barrier()
-        qc.measure(qr, cr)  # type: ignore[arg-type]
-
-    qc.metadata = {
-        "algorithm": "VQE_ansatz",
-        "n_qubits": n,
-        "ansatz": template.name,  # type: ignore[attr-defined]
-        "reps": reps,
-        "entanglement": entanglement,
-        "param_count": len(params),
-        "measured": measure,
-    }
-
-    return qc, params
-
-
-# -----------------------------------------------------------------------------
 # CLI helper
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
@@ -289,67 +235,3 @@ if __name__ == "__main__":  # pragma: no cover
     print(f"Parameters: {len(circuit_params)}")
     print(f"Metadata: {vqe_circuit.metadata}")
     print(vqe_circuit)
-
-
-# -----------------------------------------------------------------------------
-# Usage Examples
-# -----------------------------------------------------------------------------
-
-
-def demo_usage():  # pragma: no cover
-    """Demonstrate both class-based and function-based VQE usage."""
-    from generators.lib.generator import BaseParams
-
-    print("=== VQE Generator Examples ===\n")
-
-    # Class-based usage (following GHZ pattern)
-    print("1. Class-based usage with BaseParams:")
-    params = BaseParams(max_qubits=4, min_qubits=2, measure=True, seed=123)
-    generator = VQEGenerator(params)
-    vqe_params = generator.generate_parameters()
-    qc, circuit_params = generator.generate(**vqe_params)
-    print(f"   Generated: {qc.name}")
-    print(f"   Qubits: {vqe_params['n']}, Ansatz: {vqe_params['ansatz']}")
-    print(f"   Circuit Parameters: {len(circuit_params)}")
-    print()
-
-    # Function-based usage
-    print("2. Function-based usage:")
-    qc, circuit_params = generate(n=3, ansatz="efficient_su2", reps=1)
-    print(f"   Generated: {qc.name}")
-    print(f"   Circuit Parameters: {len(circuit_params)}")
-    print()
-
-
-# Backward compatibility: keep generate_random for existing code
-def generate_random(
-    n: int,
-    seed: Optional[int] = None,
-    measure: bool = True,
-    name: Optional[str] = None,
-) -> Tuple[QuantumCircuit, List[Parameter]]:
-    """Generate a VQE circuit with random parameters (backward compatibility).
-
-    Args:
-        n: Number of qubits.
-        seed: Random seed for reproducibility.
-        measure: If True, append measurement gates.
-        name: Optional circuit name.
-
-    Returns:
-        Tuple of (QuantumCircuit, list of Parameters).
-    """
-    ansatz = vqe_ansatz_type(seed=seed)
-    reps = vqe_reps(seed=seed)
-    entanglement = vqe_entanglement_pattern(seed=seed)
-    parameter_prefix = vqe_parameter_prefix(seed=seed)
-
-    return generate(
-        n=n,
-        ansatz=ansatz,
-        reps=reps,
-        entanglement=entanglement,
-        parameter_prefix=parameter_prefix,
-        measure=measure,
-        name=name or f"VQE_random_{ansatz}",
-    )

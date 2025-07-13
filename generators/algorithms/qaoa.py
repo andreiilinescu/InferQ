@@ -133,7 +133,7 @@ class QAOA(Generator):
                 raise ValueError(
                     "adjacency matrix must be symmetric (undirected graph)"
                 )
-
+            print(adj)
             edges = [
                 (u, v, adj[u, v])
                 for u in range(num_qubits)
@@ -239,54 +239,11 @@ class QAOA(Generator):
             self.num_qubits, self.base_params.seed, edge_prob=0.5
         )
 
-        return self.num_qubits, self.p_layers, self.adjacency_matrix
-
-
-# -----------------------------------------------------------------------------
-# Public API (backward compatibility)
-# -----------------------------------------------------------------------------
-
-
-def generate(
-    *,
-    n: int,
-    p: int,
-    adjacency: "np.ndarray | list[list[float]] | None" = None,
-    cost_layer: "Callable[[QuantumCircuit, list, float], None] | None" = None,
-    mixer_layer: "Callable[[QuantumCircuit, list, float], None] | None" = None,
-    gammas: Sequence[float] | None = None,
-    betas: Sequence[float] | None = None,
-    name: Optional[str] = None,
-    measure: bool = False,
-) -> QuantumCircuit:
-    """
-    Generate a QAOA circuit (functional interface).
-
-    Args:
-        n (int): Number of qubits.
-        p (int): Number of QAOA layers.
-        adjacency: Adjacency matrix for Max-Cut.
-        cost_layer: Custom cost layer function.
-        mixer_layer: Custom mixer layer function.
-        gammas: Cost parameters.
-        betas: Mixer parameters.
-        name: Circuit name.
-        measure: Whether to add measurements.
-
-    Returns:
-        QuantumCircuit: The generated QAOA circuit.
-    """
-    # Create a temporary BaseParams for the generator
-    from generators.lib.generator import BaseParams
-
-    params = BaseParams(
-        max_qubits=n, min_qubits=n, max_depth=p, min_depth=p, measure=measure, seed=None
-    )
-
-    qaoa_gen = QAOA(params)
-    return qaoa_gen.generate(
-        n, p, adjacency, cost_layer, mixer_layer, gammas, betas, name
-    )
+        return {
+            "num_qubits": self.num_qubits,
+            "p": self.p_layers,
+            "adjacency": self.adjacency_matrix,
+        }
 
 
 # -----------------------------------------------------------------------------
@@ -328,13 +285,13 @@ if __name__ == "__main__":  # pragma: no cover
     )
 
     qaoa_gen = QAOA(params)
-    num_qubits, p_layers, adjacency = qaoa_gen.generate_parameters()
-    qc_class = qaoa_gen.generate(num_qubits, p_layers, adjacency=adjacency)
+    params = qaoa_gen.generate_parameters()
+    qc_class = qaoa_gen.generate(**params)
     circuit_drawer(qc_class, output="mpl", filename=args.outfile, style="iqp")
 
     print(
         f"Generated circuit: {qc_class.name}, qubits={qc_class.num_qubits}, depth={qc_class.depth()}"
     )
     print(
-        f"Parameters: n={num_qubits}, p={p_layers}, edges={qc_class.metadata.get('num_edges', 0)}"
+        f"Parameters: n={params['num_qubits']}, p={params['p']}, edges={qc_class.metadata.get('num_edges', 0)}"
     )

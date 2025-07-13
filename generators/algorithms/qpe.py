@@ -220,7 +220,12 @@ class QPE(Generator):
         self.approximation_degree = qpe_approximation_degree(self.base_params.seed)
         self.eigenphase = qpe_eigenphase_value(self.base_params.seed)
 
-        return self.m_eval, self.n_sys, self.approximation_degree, self.eigenphase
+        return {
+            "m": self.m_eval,
+            "n_sys": self.n_sys,
+            "approximation_degree": self.approximation_degree,
+            "eigenphase": self.eigenphase,
+        }
 
 
 # -----------------------------------------------------------------------------
@@ -240,16 +245,16 @@ if __name__ == "__main__":  # pragma: no cover
     qpe_gen = QPE(params)
 
     # Generate parameters
-    m_eval, n_sys, approx_deg, eigenphase = qpe_gen.generate_parameters()
+    params = qpe_gen.generate_parameters()
     print("Generated parameters:")
-    print(f"  - Evaluation qubits: {m_eval}")
-    print(f"  - System qubits: {n_sys}")
-    print(f"  - Approximation degree: {approx_deg}")
-    print(f"  - Eigenphase: {eigenphase:.4f}")
+    print(f"  - Evaluation qubits: {params['m']}")
+    print(f"  - System qubits: {params['n_sys']}")
+    print(f"  - Approximation degree: {params['approximation_degree']}")
+    print(f"  - Eigenphase: {params['eigenphase']:.4f}")
 
     # Generate QPE circuit with default demo unitary
     qpe_circuit = qpe_gen.generate(
-        m=m_eval, n_sys=n_sys, approximation_degree=approx_deg, eigenphase=eigenphase
+        **params,
     )
     print(f"\nGenerated circuit: {qpe_circuit.name}")
     print(f"Total qubits: {qpe_circuit.num_qubits}")

@@ -184,57 +184,12 @@ class QFTGenerator(Generator):
         self.do_swaps = qft_swaps_flag(self.base_params.seed)
         self.entangled = qft_entanglement_flag(self.base_params.seed)
 
-        return self.num_qubits, self.inverse, self.do_swaps, self.entangled
-
-
-# -----------------------------------------------------------------------------
-# Public API
-# -----------------------------------------------------------------------------
-
-
-def generate(
-    *,
-    n: int,
-    inverse: bool = False,
-    do_swaps: bool = True,
-    measure: bool = False,
-    name: Optional[str] = None,
-) -> QuantumCircuit:
-    """Construct and return a QFT (or inverse QFT) circuit."""
-
-    if n < 1:
-        raise ValueError("n must be ≥ 1")
-
-    qr = QuantumRegister(n, name="q")
-    cr = ClassicalRegister(n, name="c") if measure else None
-
-    qc = QuantumCircuit(qr, cr) if cr else QuantumCircuit(qr)
-    qc.name = name or ("QFT†" if inverse else "QFT")
-
-    # Append the QFT template
-    qft_gate = QFT(
-        num_qubits=n,
-        approximation_degree=0,
-        inverse=inverse,
-        do_swaps=do_swaps,
-        name="QFT†" if inverse else "QFT",
-    )
-    qc.append(qft_gate, qr)
-
-    if measure:
-        qc.barrier()
-        qc.measure(qr, cr)  # type: ignore[arg-type]
-
-    # Metadata helpful for downstream tooling
-    qc.metadata = {
-        "algorithm": "QFT" if not inverse else "InverseQFT",
-        "n_qubits": n,
-        "inverse": inverse,
-        "do_swaps": do_swaps,
-        "measured": measure,
-    }
-
-    return qc
+        return {
+            "num_qubits": self.num_qubits,
+            "inverse": self.inverse,
+            "do_swaps": self.do_swaps,
+            "entangled": self.entangled,
+        }
 
 
 # -----------------------------------------------------------------------------
@@ -277,12 +232,12 @@ if __name__ == "__main__":  # pragma: no cover
     )
 
     qft_gen = QFTGenerator(params)
-    num_qubits, inverse, do_swaps, entangled = qft_gen.generate_parameters()
-    qc_class = qft_gen.generate(num_qubits, inverse, do_swaps, entangled)
+    params = qft_gen.generate_parameters()
+    qc_class = qft_gen.generate(**params)
     print(
         f"Generated circuit: {qc_class.name}, qubits={qc_class.num_qubits}, depth={qc_class.depth()}"
     )
     print(
-        f"Parameters: n={num_qubits}, inverse={inverse}, swaps={do_swaps}, entangled={entangled}"
+        f"Parameters: n={params['num_qubits']}, inverse={params['inverse']}, swaps={params['do_swaps']}, entangled={params['entangled']}"
     )
     circuit_drawer(qc_class, output="mpl", filename=args.outfile, style="iqp")

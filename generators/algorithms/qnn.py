@@ -190,47 +190,12 @@ class QNN(Generator):
         # Generate number of repetitions using parameter helper
         self.reps_num = qnn_reps(self.base_params.seed, 1, 3)
 
-        return self.num_qubits, self.feature_map_type, self.ansatz_type, self.reps_num
-
-
-# -----------------------------------------------------------------------------
-# Public API (backward compatibility)
-# -----------------------------------------------------------------------------
-
-
-def generate(
-    n: int,
-    feature_map: str = "ZZFeatureMap",
-    ansatz: str = "RealAmplitudes",
-    reps_num: int = 1,
-    entanglement: Optional[str] = None,
-    measure: bool = False,
-    name: Optional[str] = None,
-) -> QuantumCircuit:
-    """
-    Generate a Quantum Neural Network circuit (functional interface).
-
-    Args:
-        n (int): Number of qubits.
-        feature_map (str): Type of feature map.
-        ansatz (str): Type of ansatz.
-        reps_num (int): Number of repetitions.
-        entanglement (Optional[str]): Entanglement pattern.
-        measure (bool): Whether to add measurements.
-        name (Optional[str]): Circuit name.
-
-    Returns:
-        QuantumCircuit: The generated QNN circuit.
-    """
-    # Create a temporary BaseParams for the generator
-    from generators.lib.generator import BaseParams
-
-    params = BaseParams(
-        max_qubits=n, min_qubits=n, max_depth=1, min_depth=1, measure=measure, seed=None
-    )
-
-    qnn_gen = QNN(params)
-    return qnn_gen.generate(n, feature_map, ansatz, reps_num, entanglement, name)
+        return {
+            "num_qubits": self.num_qubits,
+            "feature_map_type": self.feature_map_type,
+            "ansatz_type": self.ansatz_type,
+            "reps_num": self.reps_num,
+        }
 
 
 # -----------------------------------------------------------------------------
@@ -238,7 +203,6 @@ def generate(
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
     import argparse
-    from qiskit.visualization import circuit_drawer
 
     parser = argparse.ArgumentParser(
         description="Generate a QNN circuit and save to SVG."
@@ -261,17 +225,6 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument("--outfile", default="qnn.svg", help="Output SVG filename")
     args = parser.parse_args()
 
-    qc_cli = generate(
-        n=args.n,
-        feature_map=args.feature_map,
-        ansatz=args.ansatz,
-        reps_num=args.reps,
-        measure=args.measure,
-    )
-
-    circuit_drawer(qc_cli, output="mpl", filename=args.outfile, style="iqp")
-    print(f"Circuit saved to {args.outfile}")
-
     # Example usage of class-based approach
     print("\nExample using QNNGenerator class:")
     from generators.lib.generator import BaseParams
@@ -286,11 +239,11 @@ if __name__ == "__main__":  # pragma: no cover
     )
 
     qnn_gen = QNN(params)
-    num_qubits, feature_map_type, ansatz_type, reps_num = qnn_gen.generate_parameters()
-    qc_class = qnn_gen.generate(num_qubits, feature_map_type, ansatz_type, reps_num)
+    params = qnn_gen.generate_parameters()
+    qc_class = qnn_gen.generate(**params)
     print(
         f"Generated circuit: {qc_class.name}, qubits={qc_class.num_qubits}, depth={qc_class.depth()}"
     )
     print(
-        f"Parameters: n={num_qubits}, feature_map={feature_map_type}, ansatz={ansatz_type}, reps={reps_num}"
+        f"Parameters: n={params['num_qubits']}, feature_map={params['feature_map_type']}, ansatz={params['ansatz_type']}, reps={params['reps_num']}"
     )

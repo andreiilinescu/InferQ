@@ -145,7 +145,7 @@ class CircuitMerger:
 
                 # Adapt stopping probability to avoid infinite repetition
                 # Increase stopping probability with each step to encourage termination
-                stopping_probability = min(0.9, stopping_probability + 0.15 * step)
+                stopping_probability = min(0.9, stopping_probability)
                 print(f"Updated stopping probability: {stopping_probability:.3f}")
             else:
                 # No generators available (shouldn't happen)
@@ -200,21 +200,36 @@ class CircuitMerger:
         successful_circuits = []
         for generator in selected_generators:
             try:
+                print(f"Generating parameters for {generator.__class__.__name__}...")
                 params = generator.generate_parameters()
+
+                print(f"Generating circuit for {generator.__class__.__name__}...")
                 if isinstance(params, tuple):
                     circuit = generator.generate(*params)
+                elif isinstance(params, dict):
+                    circuit = generator.generate(**params)
                 else:
                     circuit = generator.generate(params)
 
-                if circuit is not None:
+                if circuit is not None and hasattr(circuit, "data"):
                     circuit.name = generator.__class__.__name__
                     successful_circuits.append(circuit)
                     print(
                         f"✓ Generated {circuit.name}: {circuit.num_qubits}q, depth={circuit.depth()}"
                     )
+                else:
+                    print(
+                        f"✗ {generator.__class__.__name__} returned None or invalid circuit"
+                    )
 
             except Exception as e:
-                print(f"✗ Error with {generator.__class__.__name__}: {e}")
+                print(
+                    f"✗ Error with {generator.__class__.__name__}: {type(e).__name__}: {e}"
+                )
+                # Print more detailed error for debugging
+                import traceback
+
+                print(f"   Details: {traceback.format_exc().splitlines()[-2]}")
                 continue
 
         # Merge the successful circuits

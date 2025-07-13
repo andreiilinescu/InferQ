@@ -77,8 +77,8 @@ class QuantumWalk(Generator):
         Returns:
             QuantumCircuit: The generated quantum walk circuit.
         """
-        if num_qubits < 2:
-            raise ValueError("num_qubits must be ≥ 2 (1 for coin, ≥1 for graph)")
+        if num_qubits < 3:
+            raise ValueError("num_qubits must be ≥ 3 (1 for coin, ≥2 for graph)")
 
         # Calculate graph size (num_qubits - 1 for coin qubit)
         graph_size = num_qubits - 1
@@ -164,7 +164,7 @@ class QuantumWalk(Generator):
         qc.x(node[1:])
         qc.x(coin)
 
-    def generate_parameters(self) -> tuple[int, int, str]:
+    def generate_parameters(self) -> dict:
         """
         Generate parameters for the Quantum Walk circuit.
 
@@ -185,48 +185,11 @@ class QuantumWalk(Generator):
 
         self.coin_preparation_type = qwalk_coin_preparation_type(self.base_params.seed)
 
-        return self.num_qubits, self.steps, self.coin_preparation_type
-
-
-# -----------------------------------------------------------------------------
-# Public API (backward compatibility)
-# -----------------------------------------------------------------------------
-
-
-def generate(
-    n: int,
-    depth: int,
-    coin_state_preparation: Optional[QuantumCircuit] = None,
-    measure: bool = False,
-    name: Optional[str] = None,
-) -> QuantumCircuit:
-    """
-    Generate a Quantum Walk circuit (functional interface).
-
-    Args:
-        n (int): Total number of qubits.
-        depth (int): Number of quantum walk steps.
-        coin_state_preparation (Optional[QuantumCircuit]): Custom coin preparation.
-        measure (bool): Whether to add measurements.
-        name (Optional[str]): Circuit name.
-
-    Returns:
-        QuantumCircuit: The generated quantum walk circuit.
-    """
-    # Create a temporary BaseParams for the generator
-    from generators.lib.generator import BaseParams
-
-    params = BaseParams(
-        max_qubits=n,
-        min_qubits=n,
-        max_depth=depth,
-        min_depth=depth,
-        measure=measure,
-        seed=None,
-    )
-
-    qwalk_gen = QuantumWalk(params)
-    return qwalk_gen.generate(n, depth, "none", coin_state_preparation, name)
+        return {
+            "num_qubits": self.num_qubits,
+            "steps": self.steps,
+            "coin_preparation_type": self.coin_preparation_type,
+        }
 
 
 # -----------------------------------------------------------------------------
@@ -234,7 +197,6 @@ def generate(
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
     import argparse
-    from qiskit.visualization import circuit_drawer
 
     parser = argparse.ArgumentParser(
         description="Generate a Quantum Walk circuit and save to SVG."
@@ -251,11 +213,6 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument("--outfile", default="qwalk.svg", help="Output SVG filename")
     args = parser.parse_args()
 
-    qc_cli = generate(n=args.n, depth=args.depth, measure=args.measure)
-
-    circuit_drawer(qc_cli, output="mpl", filename=args.outfile, style="iqp")
-    print(f"Circuit saved to {args.outfile}")
-
     # Example usage of class-based approach
     print("\nExample using QuantumWalkGenerator class:")
     from generators.lib.generator import BaseParams
@@ -270,10 +227,12 @@ if __name__ == "__main__":  # pragma: no cover
     )
 
     qwalk_gen = QuantumWalk(params)
-    num_qubits, steps, coin_type = qwalk_gen.generate_parameters()
-    qc_class = qwalk_gen.generate(num_qubits, steps, coin_type)
+    params = qwalk_gen.generate_parameters()
+    qc_class = qwalk_gen.generate(**params)
     print(
         f"Generated circuit: {qc_class.name}, qubits={qc_class.num_qubits}, depth={qc_class.depth()}"
     )
-    print(f"Parameters: n={num_qubits}, steps={steps}, coin_prep={coin_type}")
-    print(f"Graph size: {num_qubits - 1} nodes")
+    print(
+        f"Parameters: n={params['num_qubits']}, steps={params['steps']}, coin_prep={params['coin_preparation_type']}"
+    )
+    print(f"Graph size: {params['num_qubits'] - 1} nodes")
