@@ -5,7 +5,7 @@ from feature_extractors.graph_features import *
 
 
 # Generate a circuit
-n = 1000
+n = 10
 circuit = wstate.WState(BaseParams(max_qubits=n, min_qubits=n,max_depth=n**2,min_depth=0)).generate(n)
 # print(circuit)
 

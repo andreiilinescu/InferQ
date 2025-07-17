@@ -7,6 +7,8 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from collections import Counter
 import rustworkx as rx
+import networkx as nx
+import numpy as np
 
 
 def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
@@ -79,19 +81,29 @@ class IGGraph(QuantumGraph):
     def __init__(self, circuit : QuantumCircuit):
         super().__init__(circuit)
         self.rustxgraph = convertToPyGraphIG(circuit)
+        self.distances = rx.floyd_warshall(self.rustxgraph, weight_fn=float)
+        # self.nxgraph = rx.networkx_converter(self.rustxgraph)
 
+    def getRadius(self):
+        # Use precomputed distances
+        radius = min(
+            max(self.distances[node].values()) for node in self.distances if self.distances[node]
+        )
+        return {"radius": radius}
+    
     def getDiameter(self):
-        # Compute all-pairs shortest path lengths
-        distances = rx.floyd_warshall(self.rustxgraph, weight_fn=float)
-
-        # Find the diameter
+        # Use precomputed distances
         diameter = max(
             dist
-            for row in distances.values()
+            for row in self.distances.values()
             for dist in row.values()
             if dist is not None
         )
-        return {"diameter":diameter}
+        return {"diameter": diameter}
+    
+    def getConnectedComponents(self):
+        components = rx.connected_components(self.rustxgraph)
+        return {"connected_components": [list(comp) for comp in components]}
 
     def getMaxDegree(self):
         degrees = [self.rustxgraph.degree(node) for node in range(self.circuit.num_qubits)]
@@ -116,8 +128,49 @@ class IGGraph(QuantumGraph):
         total_degree = sum(self.rustxgraph.degree(node) for node in range(self.rustxgraph.num_nodes()))
         average_degree = total_degree / self.rustxgraph.num_nodes()
         return {"average_degree": average_degree}
+    
+    def getStandardDeviationAdjacencyMatrix(self):
+        if self.rustxgraph.num_nodes() == 0:
+            return {"std_dev_adjacency_matrix": 0.0}
+        adjacency_matrix = rx.adjacency_matrix(self.rustxgraph, weight_fn=float)
+        std_dev = np.std(adjacency_matrix)
+        return {"std_dev_adjacency_matrix": std_dev}
 
+    def getCentralPointOfDominence(self):
+        if self.rustxgraph.num_nodes() == 0:
+            return {"central_point_of_dominance": 0.0}
+        centrality = rx.betweenness_centrality(self.rustxgraph, normalized=True)
+        max_centrality = max(centrality.values())
+        return {"central_point_of_dominance": max_centrality}
+    
+    def getCoreNumber(self):
+        if self.rustxgraph.num_nodes() == 0:
+            return {"core_number": {}}
+        core_numbers = rx.core_number(self.rustxgraph)
+        return {"core_number": dict(enumerate(core_numbers))}
 
+    def getAverageClusteringCoefficient(self):
+        # Let us use transitivity function
+        if self.rustxgraph.num_nodes() == 0:
+            return {"average_clustering_coefficient": 0.0} 
+        coeff = rx.transitivity(self.rustxgraph)
+        return {"average_clustering_coefficient": coeff}
+    
+
+    def getAverageShortestPathLength(self):
+        # Use precomputed distances
+        if self.rustxgraph.num_nodes() == 0:    
+            return {"average_shortest_path_length": 0.0}
+        total_length = 0
+        count = 0
+        for node, dist_dict in self.distances.items():
+            for target, length in dist_dict.items():
+                if length is not None and node != target:
+                    total_length += length
+                    count += 1
+        average_length = total_length / count if count > 0 else 0.0
+        return {"average_shortest_path_length": average_length}
+        
     def extractAllFeatures(self) -> dict[str, Any]:
         import inspect
         # Only get methods defined in IGGraph, not inherited
