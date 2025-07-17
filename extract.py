@@ -15,14 +15,13 @@ print(circuit)
 print("IG graph created")
 
 # Generate Graph
-graph = convertToPyGraphIG(circuit)
+iggraph = IGGraph(circuit=circuit)
 
 # Draw the graph
 plt.figure()
-mpl_draw(graph, with_labels=True, edge_labels=int)
+mpl_draw(iggraph.rustxgraph, with_labels=True, edge_labels=int)
 plt.savefig("my_graph.png")
 # Saved
 
 print("IG graph Metrics for Circuit")
-print(getMinCutDegree(graph, circuit))
-print(getDiameter(graph, circuit))
+print(iggraph.extractAllFeatures())
