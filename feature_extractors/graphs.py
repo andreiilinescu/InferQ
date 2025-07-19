@@ -48,87 +48,12 @@ class QuantumGraph:
             circuit (QuantumCircuit, optional): The quantum circuit to analyze.
         """
         self.circuit = circuit
-
-    def getNumberOfQubits(self):
-        """
-        Returns the number of qubits in the circuit.
-        Returns:
-            dict: {"num_qubits": int}
-        """
-        return {"num_qubits": self.circuit.num_qubits} if self.circuit else {"num_qubits": 0}
-    def getGateCounts(self):
-        """
-        Returns a count of each gate type in the circuit.
-        Returns:
-            dict: {"gate_counts": {str: int}}
-        """
-        if not self.circuit:
-            return {"gate_counts": {}}
-        gate_counts = Counter(instruction.operation.name for instruction in self.circuit.data)
-        return {"gate_counts": dict(gate_counts)}
-    def getDepth(self):
-        """
-        Returns the depth of the circuit.
-        Returns:
-            dict: {"depth": int}
-        """
-        return {"depth": self.circuit.depth()} if self.circuit else {"depth": 0}
-    def getWidth(self):
-        """
-        Returns the width of the circuit.
-        Returns:
-            dict: {"width": int}
-        """
-        return {"width": self.circuit.width()} if self.circuit else {"width": 0}
-    def getName(self):
-        """
-        Returns the name of the circuit.
-        Returns:
-            dict: {"name": str}
-        """
-        return {"name": self.circuit.name} if self.circuit else {"name": "Unnamed Circuit"}
-
-    def getTwoQubitGateCount(self):
-        """
-        Returns the number of two-qubit gates in the circuit.
-        Returns:
-            dict: {"two_qubit_gate_count": int}
-        """
-        if not self.circuit:
-            return {"two_qubit_gate_count": 0}
-        two_qubit_gates = [inst for inst in self.circuit.data if len(inst.qubits) == 2]
-        return {"two_qubit_gate_count": len(two_qubit_gates)}
-
-    def getTwoQubitGatePercentage(self):
-        """
-        Returns the percentage of two-qubit gates in the circuit.
-        Returns:
-            dict: {"two_qubit_gate_percentage": float}
-        """
-        two_qubit_gates = self.getTwoQubitGateCount()["two_qubit_gate_count"]
-        total_gates = len(self.circuit.data)
-        percentage = (two_qubit_gates / total_gates) * 100 if total_gates > 0 else 0.0
-        return {"two_qubit_gate_percentage": percentage}
-
+        self.rustxgraph = None  # Placeholder for the rustworkx graph
     def extractAllFeatures(self) -> dict[str, Any]:
-        """
-        Extracts all basic features from the quantum circuit.
-        Returns:
-            dict: All extracted features.
-        """
-        features = {
-            "num_qubits": self.getNumberOfQubits()["num_qubits"],
-            "gate_counts": self.getGateCounts()["gate_counts"],
-            "depth": self.getDepth()["depth"],
-            "width": self.getWidth()["width"],
-            "name": self.getName()["name"],
-            "two_qubit_gate_count": self.getTwoQubitGateCount()["two_qubit_gate_count"],
-            "two_qubit_gate_percentage": self.getTwoQubitGatePercentage()["two_qubit_gate_percentage"]
-        }
-        return features
+        return {}
 
 
-class IGGraph(QuantumGraph):
+class IGGraphExtractor(QuantumGraph):
 
     def __init__(self, circuit : QuantumCircuit):
         """
@@ -140,7 +65,20 @@ class IGGraph(QuantumGraph):
         super().__init__(circuit)
         self.rustxgraph = convertToPyGraphIG(circuit)
         self.distances = rx.floyd_warshall(self.rustxgraph, weight_fn=float)
-        # self.nxgraph = rx.networkx_converter(self.rustxgraph)
+        self.rustxdigraph = self.rustxgraph.to_directed()
+        self.extracted_features = {}
+
+    def getIGDepth(self):
+        """
+        Returns the depth of the circuit.
+        Returns:
+            dict: {"igdepth": int}
+        """
+        if "igdepth" in self.extracted_features:
+            return {"igdepth": self.extracted_features["igdepth"]}
+        value = self.circuit.depth() if self.circuit else 0
+        self.extracted_features["igdepth"] = value
+        return {"igdepth": value}
 
     def getRadius(self):
         """
@@ -148,10 +86,12 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"radius": float}
         """
-        # Use precomputed distances
+        if "radius" in self.extracted_features:
+            return {"radius": self.extracted_features["radius"]}
         radius = min(
             max(self.distances[node].values()) for node in self.distances if self.distances[node]
         )
+        self.extracted_features["radius"] = radius
         return {"radius": radius}
     
     def getDiameter(self):
@@ -160,13 +100,15 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"diameter": float}
         """
-        # Use precomputed distances
+        if "diameter" in self.extracted_features:
+            return {"diameter": self.extracted_features["diameter"]}
         diameter = max(
             dist
             for row in self.distances.values()
             for dist in row.values()
             if dist is not None
         )
+        self.extracted_features["diameter"] = diameter
         return {"diameter": diameter}
     
     def getConnectedComponents(self):
@@ -175,8 +117,12 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"connected_components": list[list[int]]}
         """
+        if "connected_components" in self.extracted_features:
+            return {"connected_components": self.extracted_features["connected_components"]}
         components = rx.connected_components(self.rustxgraph)
-        return {"connected_components": [list(comp) for comp in components]}
+        result = [list(comp) for comp in components]
+        self.extracted_features["connected_components"] = result
+        return {"connected_components": result}
 
     def getMaxDegree(self):
         """
@@ -184,8 +130,11 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"max_degree": int}
         """
+        if "max_degree" in self.extracted_features:
+            return {"max_degree": self.extracted_features["max_degree"]}
         degrees = [self.rustxgraph.degree(node) for node in range(self.circuit.num_qubits)]
         max_deg = max(degrees) if degrees else 0
+        self.extracted_features["max_degree"] = int(max_deg)
         return {"max_degree": int(max_deg)}
 
     def getMinCut(self):
@@ -194,7 +143,10 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"min_cut_upper": int}
         """
+        if "min_cut_upper" in self.extracted_features:
+            return {"min_cut_upper": self.extracted_features["min_cut_upper"]}
         min_cut = rx.stoer_wagner_min_cut(self.rustxgraph)[0] if self.rustxgraph.num_edges() else 0
+        self.extracted_features["min_cut_upper"] = int(min_cut)
         return {"min_cut_upper": int(min_cut)}
 
     def getEdgeCount(self):
@@ -203,7 +155,10 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"edge_count": int}
         """
+        if "edge_count" in self.extracted_features:
+            return {"edge_count": self.extracted_features["edge_count"]}
         edge_count = self.rustxgraph.num_edges() if self.rustxgraph else 0
+        self.extracted_features["edge_count"] = int(edge_count)
         return {"edge_count": int(edge_count)}
 
     def getNodeCount(self):
@@ -212,7 +167,10 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"node_count": int}
         """
+        if "node_count" in self.extracted_features:
+            return {"node_count": self.extracted_features["node_count"]}
         node_count = self.rustxgraph.num_nodes() if self.rustxgraph else 0
+        self.extracted_features["node_count"] = int(node_count)
         return {"node_count": int(node_count)}
     
     def getAverageDegree(self):
@@ -221,10 +179,14 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"average_degree": float}
         """
+        if "average_degree" in self.extracted_features:
+            return {"average_degree": self.extracted_features["average_degree"]}
         if self.rustxgraph.num_nodes() == 0:
+            self.extracted_features["average_degree"] = 0.0
             return {"average_degree": 0.0}
         total_degree = sum(self.rustxgraph.degree(node) for node in range(self.rustxgraph.num_nodes()))
         average_degree = total_degree / self.rustxgraph.num_nodes()
+        self.extracted_features["average_degree"] = average_degree
         return {"average_degree": average_degree}
     
     def getStandardDeviationAdjacencyMatrix(self):
@@ -233,10 +195,14 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"std_dev_adjacency_matrix": float}
         """
+        if "std_dev_adjacency_matrix" in self.extracted_features:
+            return {"std_dev_adjacency_matrix": self.extracted_features["std_dev_adjacency_matrix"]}
         if self.rustxgraph.num_nodes() == 0:
+            self.extracted_features["std_dev_adjacency_matrix"] = 0.0
             return {"std_dev_adjacency_matrix": 0.0}
         adjacency_matrix = rx.adjacency_matrix(self.rustxgraph, weight_fn=float)
         std_dev = np.std(adjacency_matrix)
+        self.extracted_features["std_dev_adjacency_matrix"] = std_dev
         return {"std_dev_adjacency_matrix": std_dev}
 
     def getCentralPointOfDominence(self):
@@ -245,10 +211,14 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"central_point_of_dominance": float}
         """
+        if "central_point_of_dominance" in self.extracted_features:
+            return {"central_point_of_dominance": self.extracted_features["central_point_of_dominance"]}
         if self.rustxgraph.num_nodes() == 0:
+            self.extracted_features["central_point_of_dominance"] = 0.0
             return {"central_point_of_dominance": 0.0}
         centrality = rx.betweenness_centrality(self.rustxgraph, normalized=True)
         max_centrality = max(centrality.values())
+        self.extracted_features["central_point_of_dominance"] = max_centrality
         return {"central_point_of_dominance": max_centrality}
     
     def getCoreNumber(self):
@@ -257,10 +227,15 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"core_number": dict}
         """
+        if "core_number" in self.extracted_features:
+            return {"core_number": self.extracted_features["core_number"]}
         if self.rustxgraph.num_nodes() == 0:
+            self.extracted_features["core_number"] = {}
             return {"core_number": {}}
         core_numbers = rx.core_number(self.rustxgraph)
-        return {"core_number": dict(enumerate(core_numbers))}
+        result = dict(enumerate(core_numbers))
+        self.extracted_features["core_number"] = result
+        return {"core_number": result}
 
     def getAverageClusteringCoefficient(self):
         """
@@ -268,21 +243,25 @@ class IGGraph(QuantumGraph):
         Returns:
             dict: {"average_clustering_coefficient": float}
         """
-        # Let us use transitivity function
+        if "average_clustering_coefficient" in self.extracted_features:
+            return {"average_clustering_coefficient": self.extracted_features["average_clustering_coefficient"]}
         if self.rustxgraph.num_nodes() == 0:
+            self.extracted_features["average_clustering_coefficient"] = 0.0
             return {"average_clustering_coefficient": 0.0} 
         coeff = rx.transitivity(self.rustxgraph)
+        self.extracted_features["average_clustering_coefficient"] = coeff
         return {"average_clustering_coefficient": coeff}
     
-
     def getAverageShortestPathLength(self):
         """
         Returns the average shortest path length between all pairs of nodes.
         Returns:
             dict: {"average_shortest_path_length": float}
         """
-        # Use precomputed distances
+        if "average_shortest_path_length" in self.extracted_features:
+            return {"average_shortest_path_length": self.extracted_features["average_shortest_path_length"]}
         if self.rustxgraph.num_nodes() == 0:    
+            self.extracted_features["average_shortest_path_length"] = 0.0
             return {"average_shortest_path_length": 0.0}
         total_length = 0
         count = 0
@@ -292,7 +271,26 @@ class IGGraph(QuantumGraph):
                     total_length += length
                     count += 1
         average_length = total_length / count if count > 0 else 0.0
+        self.extracted_features["average_shortest_path_length"] = average_length
         return {"average_shortest_path_length": average_length}
+    
+    def getPageRank(self):
+        """
+        Returns the PageRank values for each node in the graph.
+        Returns:
+            dict: {"pagerank": dict}
+        """
+        # This method calculates the PageRank of the graph.
+        # using the digraph version of the graph self.rustxdigraph
+        if "pagerank" in self.extracted_features:
+            return {"pagerank": self.extracted_features["pagerank"]}
+        if self.rustxdigraph.num_nodes() == 0:
+            self.extracted_features["pagerank"] = {}
+            return {"pagerank": {}}
+        pagerank_values = rx.pagerank(self.rustxdigraph, alpha=0.85)
+        result = dict(enumerate(pagerank_values))
+        self.extracted_features["pagerank"] = result
+        return {"pagerank": result}
         
     def extractAllFeatures(self) -> dict[str, Any]:
         """

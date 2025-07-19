@@ -1,8 +1,8 @@
-from feature_extractors.graphs import IGGraph
+from feature_extractors.graphs import IGGraphExtractor
 from generators.state_prep_circuits import ghz, wstate
 from generators.state_prep_circuits.ghz import BaseParams
 from feature_extractors.graph_features import *
-
+from feature_extractors.static_features import *
 
 # Generate a circuit
 n = 10
@@ -24,5 +24,7 @@ circuit = wstate.WState(BaseParams(max_qubits=n, min_qubits=n,max_depth=n**2,min
 print("IG graph Metrics for Circuit")
 # Let us use the fetaure extractors and get the metrics
 graph_feature_extractor = GraphFeatureExtracter(circuit=circuit)
+static_feature_extractor = StaticFeatureExtractor(circuit=circuit)
 features = graph_feature_extractor.extractAllFeatures()
+features.update(static_feature_extractor.extractAllFeatures())
 print(features)

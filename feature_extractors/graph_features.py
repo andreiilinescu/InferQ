@@ -3,11 +3,8 @@ from feature_extractors.graphs import *
 import json, hashlib
 from typing import Any
 import inspect
-
-
-class FeatureExtracter():
-    def __init__(self, circuit: QuantumCircuit = None):
-        self.circuit = circuit
+from qiskit import QuantumCircuit
+from feature_extractors.static_features import FeatureExtracter
 
 class GraphFeatureExtracter(FeatureExtracter):
     def __init__(self, circuit: QuantumCircuit = None):
@@ -15,13 +12,13 @@ class GraphFeatureExtracter(FeatureExtracter):
     
     def extractAllFeatures(self) -> dict[str, Any]:
         # We are going to extract using IGGraph
-        iggraph = IGGraph(circuit=self.circuit)
+        iggraph = IGGraphExtractor(circuit=self.circuit)
         features = iggraph.extractAllFeatures()
 
         # We also need the basic size based features
         # from the QuantumGraph class
-        quantum_graph = QuantumGraph(circuit=self.circuit)
-        features.update(quantum_graph.extractAllFeatures())
+        # quantum_graph = QuantumGraph(circuit=self.circuit)
+        # features.update(quantum_graph.extractAllFeatures())
 
         # We are also going to add the GDG based features
         # from the GDGGraph class
