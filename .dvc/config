@@ -1,5 +1,0 @@
-[core]
-    remote = storage
-['remote "storage"']
-    url = azure://inferq-dvc
-    account_name = inferqstorage

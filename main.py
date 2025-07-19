@@ -1,77 +1,29 @@
-import sys
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-
-
+from utils.save_utils import save_circuit_locally,create_circuits_table, save_circuit_metadata, upload_circuit_blob
+from utils.azure_connection import AzureConnection
+from utils.features_const import FEATURES_LIST
+from pathlib import Path
 def main():
-    """
-    Main function to demonstrate hierarchical quantum circuit generation.
-    """
-    print("🚀 Starting InferQ Hierarchical Circuit Generation!")
+    # generate circuit
+    azure_conn=AzureConnection()
+    conn=azure_conn.get_conn()
+    container_client=azure_conn.get_container_client()
+    create_circuits_table(conn,FEATURES_LIST)
 
-    # Get number of qubits from command line argument
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 3
-    print(f"Generating circuits with {n} qubits")
-
-    # Create base parameters
-    base_params = BaseParams(
-        max_qubits=n, min_qubits=n, max_depth=10, min_depth=5, seed=42
-    )
-
-    # Initialize circuit merger
-    circ_merger = CircuitMerger(base_params=base_params)
-    print(f"Initialized with {len(circ_merger.generators)} available generators")
-
-    # Generate hierarchical circuit
-    print("\n" + "=" * 50)
-    circ = circ_merger.generate_hierarchical_circuit(
-        stopping_probability=0.4, max_generators=3
-    )
-    print("=" * 50)
-
-    # Display results
-    if circ and circ.data:
-        print(f"\n✅ Successfully generated circuit: {circ.name}")
-        print(
-            f"   📊 Stats: {circ.num_qubits} qubits, depth={circ.depth()}, {len(circ.data)} operations"
-        )
-
-        # Count gate types
-        gate_counts = {}
-        for instruction in circ.data:
-            gate_name = instruction.operation.name
-            gate_counts[gate_name] = gate_counts.get(gate_name, 0) + 1
-
-        print(
-            f"   🔧 Gates: {dict(list(gate_counts.items())[:5])}{'...' if len(gate_counts) > 5 else ''}"
-        )
-
-        print("\n🔬 Circuit Visualization:")
-        print(circ)
-
-        # Save circuit to file
-        try:
-            filename = f"hierarchical_circuit_{n}q.qasm"
-            with open(filename, "w") as f:
-                f.write(circ)
-            print(f"💾 Circuit saved to: {filename}")
-        except Exception as e:
-            print(f"⚠️  Could not save circuit: {e}")
-
-    else:
-        print("❌ No circuit was generated or circuit is empty")
-        return 1
-
-    return 0
-
-
+    base_params=BaseParams(max_qubits=10, min_qubits=2, max_depth=100,min_depth=2)
+    circuitMerger=CircuitMerger(base_params=base_params)
+    circ=circuitMerger.generate_hierarchical_circuit()
+    extracted_features={}
+    # save locally 
+    qpy_hash,features,written=save_circuit_locally(circ,extracted_features,Path("./circuits/")) 
+    # save to blob
+    if(written):
+        blob_path=upload_circuit_blob(container_client,circ,qpy_hash)
+        # save to db
+        features["blob_path"]=blob_path.split("circuits/")[1]
+        save_circuit_metadata(conn,features)
+    
+    #save simulation data
 if __name__ == "__main__":
-    try:
-        exit_code = main()
-        sys.exit(exit_code)
-    except Exception as e:
-        print(f"\n💥 Error during execution: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    main()
