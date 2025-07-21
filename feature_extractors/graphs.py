@@ -9,7 +9,7 @@ from collections import Counter
 import rustworkx as rx
 import networkx as nx
 import numpy as np
-
+from feature_extractors.static_features import FeatureExtracter
 
 def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
     """
@@ -66,20 +66,21 @@ class QuantumGraph:
         return {}
 
 
-class IGGraphExtractor(QuantumGraph):
+class IGGraphExtractor():
 
-    def __init__(self, circuit : QuantumCircuit):
+    def __init__(self, circuit : QuantumCircuit, feature_extractor: FeatureExtracter = None):
         """
         Initializes the IGGraph with a QuantumCircuit.
         Converts the circuit to a rustworkx graph and precomputes shortest path distances.
         Args:
             circuit (QuantumCircuit): The quantum circuit to analyze.
         """
-        super().__init__(circuit)
+        self.circuit = circuit
         self.rustxgraph = convertToPyGraphIG(circuit)
         self.distances = rx.floyd_warshall(self.rustxgraph, weight_fn=float)
         self.rustxdigraph = self.rustxgraph.to_directed()
-        self.extracted_features = {}
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
 
     def getIGDepth(self):
         """

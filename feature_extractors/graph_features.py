@@ -7,13 +7,15 @@ from qiskit import QuantumCircuit
 from feature_extractors.static_features import FeatureExtracter
 
 class GraphFeatureExtracter(FeatureExtracter):
-    def __init__(self, circuit: QuantumCircuit = None):
-        super().__init__(circuit)
+    def __init__(self, circuit: QuantumCircuit = None, feature_extractor: FeatureExtracter = None):
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
+        self.circuit = circuit if circuit else self.feature_extractor.circuit
     
     def extractAllFeatures(self) -> dict[str, Any]:
         # We are going to extract using IGGraph
-        iggraph = IGGraphExtractor(circuit=self.circuit)
-        features = iggraph.extractAllFeatures()
+        iggraph = IGGraphExtractor(circuit=self.circuit, feature_extractor=self.feature_extractor)
+        self.extracted_features = iggraph.extractAllFeatures()
 
         # We also need the basic size based features
         # from the QuantumGraph class
@@ -26,7 +28,7 @@ class GraphFeatureExtracter(FeatureExtracter):
         # gdggraph = GDGGraph(circuit=self.circuit)
         # features.update(gdggraph.extractAllFeatures())
 
-        return features
+        return self.extracted_features
 
 
 

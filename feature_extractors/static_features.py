@@ -6,20 +6,22 @@ from feature_extractors.graphs import *
 class FeatureExtracter():
     def __init__(self, circuit: QuantumCircuit = None):
         self.circuit = circuit
+        self.extracted_features = {}
 
 
 # ───────────────────────────────────────── static features
 
-class StaticFeatureExtractor(FeatureExtracter):
+class StaticFeatureExtractor():
 
-    def __init__(self, circuit: QuantumCircuit = None):
+    def __init__(self, circuit: QuantumCircuit = None, feature_extractor: FeatureExtracter = None):
         """
         Initializes the StaticFeatureExtractor with a given QuantumCircuit.
         Args:
             circuit (QuantumCircuit, optional): The quantum circuit to analyze.
         """
-        super().__init__(circuit)
-        self.extracted_features = {}
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
+        self.circuit = circuit if circuit else self.feature_extractor.circuit
 
     def getNumberOfQubits(self):
         """
