@@ -36,6 +36,19 @@ def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
     g.add_edges_from([(q, q2, v) for (q, q2), v in edges.items()])
     return g
 
+def convertToPyGraphGDG(circ: QuantumCircuit) -> dict:
+    """
+    Converts a Qiskit QuantumCircuit to a rustworkx PyGraph.
+    Each two-qubit gate is represented as an edge, with edge weights counting occurrences.
+    Nodes correspond to qubits.
+    Returns:
+        rx.PyGraph: The constructed graph.
+    """
+    dag = circuit_to_dag(circ)
+    g = rx.PyGraph()
+    # TODO
+    return g
+
 
 # ───────────────────────────────────────── graph-based features
 
@@ -291,7 +304,7 @@ class IGGraphExtractor(QuantumGraph):
         result = dict(enumerate(pagerank_values))
         self.extracted_features["pagerank"] = result
         return {"pagerank": result}
-        
+    
     def extractAllFeatures(self) -> dict[str, Any]:
         """
         Extracts all features defined in IGGraph and returns them as a single dictionary.
@@ -315,3 +328,24 @@ class IGGraphExtractor(QuantumGraph):
                 print(f"Error in method {method.__name__}: {e}")
                 continue  # Skip methods that raise exceptions
         return result
+
+
+
+
+# GDG class
+
+class GDGGraphExtractor(QuantumGraph):
+    def __init__(self, circuit: QuantumCircuit):
+        """
+        Initializes the GDGGraph with a QuantumCircuit.
+        Converts the circuit to a rustworkx graph and precomputes shortest path distances.
+        Args:
+            circuit (QuantumCircuit): The quantum circuit to analyze.
+        """
+        super().__init__(circuit)
+        self.rustxgraph = convertToPyGraphGDG(circuit)
+        self.extracted_features = {}
+    
+    def extractAllFeatures(self) -> dict[str, Any]:
+        # Placeholder for GDG features extraction
+        return {}
