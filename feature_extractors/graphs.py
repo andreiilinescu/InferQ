@@ -90,7 +90,7 @@ def convertToPyGraphGDG(circ: QuantumCircuit) -> dict:
             if e[1] not in gate_to_index:
                 gate_to_index[e[1]] = len(gate_to_index) + n
             edges.append((gate_to_index[e[0]], gate_to_index[e[1]], 1))
-    g = rx.PyGraph()
+    g = rx.PyDiGraph()
     g.add_nodes_from(range(len(gn) + n))
     # at the end go through the edges and add any nodes which are not in the graph
     for gate, index in gate_to_index.items():
@@ -386,6 +386,23 @@ class GDGGraphExtractor():
         self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
         self.extracted_features = self.feature_extractor.extracted_features
     
+    def getCriticalPathLength(self):
+        """
+        Returns the length of the critical path in the circuit.
+        Returns:
+            dict: {"critical_path_length": int}
+        """
+        if "critical_path_length" in self.extracted_features:
+            return {"critical_path_length": self.extracted_features["critical_path_length"]}
+        critical_path_length = rx.dag_longest_path_length(self.rustxgraph)
+        self.extracted_features["critical_path_length"] = critical_path_length
+        return {"critical_path_length": critical_path_length}
+    
     def extractAllFeatures(self) -> dict[str, Any]:
-        # Placeholder for GDG features extraction
-        return {}
+        """
+        Extracts all features defined in GDGGraph and returns them as a single dictionary.
+        Returns:
+            dict: All extracted features.
+        """
+        self.getCriticalPathLength()  # Ensure critical path length is calculated
+        return self.extracted_features
