@@ -75,14 +75,27 @@ def convertToPyGraphGDG(circ: QuantumCircuit) -> dict:
     gate_to_index = {gn[i]: i + n for i in range(len(gn))}
     edges = []
     for e in ge:
+        # if node not in map,m , we will add it
+            
+        
         if isinstance(e[0], DAGInNode) and isinstance(e[1], DAGOpNode):
             # e[0].wire is <Qubit register=(2, "q"), index=0>
+            if e[1] not in gate_to_index:
+                gate_to_index[e[1]] = len(gate_to_index) + n
             s = int(str(e[0].wire).split("index=")[1].split(")")[0].split(">")[0])
             edges.append((s, gate_to_index[e[1]], 1))
         elif isinstance(e[0], DAGOpNode) and isinstance(e[1], DAGOpNode):
+            if e[0] not in gate_to_index:
+                gate_to_index[e[0]] = len(gate_to_index) + n
+            if e[1] not in gate_to_index:
+                gate_to_index[e[1]] = len(gate_to_index) + n
             edges.append((gate_to_index[e[0]], gate_to_index[e[1]], 1))
     g = rx.PyGraph()
     g.add_nodes_from(range(len(gn) + n))
+    # at the end go through the edges and add any nodes which are not in the graph
+    for gate, index in gate_to_index.items():
+        if index not in g.nodes():
+            g.add_node(index)
     g.add_edges_from(edges)
     return g
 
