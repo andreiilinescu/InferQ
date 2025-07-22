@@ -4,12 +4,15 @@ import json, hashlib
 from typing import Any
 import inspect
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
+from qiskit.converters import circuit_to_dag, circuit_to_dagdependency
 from collections import Counter
 import rustworkx as rx
 import networkx as nx
 import numpy as np
 from feature_extractors.static_features import FeatureExtracter
+from qiskit.circuit import QuantumCircuit, QuantumRegister, ClassicalRegister
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode, DAGInNode, DAGOutNode
+
 
 def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
     """
@@ -39,31 +42,53 @@ def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
 def convertToPyGraphGDG(circ: QuantumCircuit) -> dict:
     """
     Converts a Qiskit QuantumCircuit to a rustworkx PyGraph.
-    Each two-qubit gate is represented as an edge, with edge weights counting occurrences.
-    Nodes correspond to qubits.
+    This returns a gate dependency graph (GDG) where each gate is a node.
+    Each edge represents a dependency between gates, with directed unweighted edges.
+    Nodes correspond to gates, and edges represent dependencies.
+    We will also add nodes for qubits.
+    And their edges to the gates they are involved in immediately.
+    Args:
+        circ (QuantumCircuit): The quantum circuit to convert.
     Returns:
         rx.PyGraph: The constructed graph.
     """
+    # qiskit_circuit = circ
+    # dag = circuit_to_dagdependency(qiskit_circuit)
+    # dependency_graph = rx.PyDiGraph()
+    # print([e for e in dag.get_all_edges()])
+    # print([n for n in dag.get_all_nodes()])
+    # return dependency_graph
+
     dag = circuit_to_dag(circ)
+    gates = dag.gate_nodes()
+    ge = dag.edges()
+
+    # T=Each of these gates are DagOpNodes and are nodes of the graph
+    # If DagInNode in in the edge, we know it came from a qubit
+    # If DagOutNode is in the edge, we know it goes to output wire at the end
+    # We will not add the edges to the DagOutNode
+    # We will add the edges to the DagInNode (which connects qubits to gates)
+    # Gates are also connected to each other
+    n = circ.num_qubits
+    gn = gates
+    # let us make a map mapping the str version of the gate to the node integer index
+    gate_to_index = {gn[i]: i + n for i in range(len(gn))}
+    edges = []
+    for e in ge:
+        if isinstance(e[0], DAGInNode) and isinstance(e[1], DAGOpNode):
+            # e[0].wire is <Qubit register=(2, "q"), index=0>
+            s = int(str(e[0].wire).split("index=")[1].split(")")[0].split(">")[0])
+            edges.append((s, gate_to_index[e[1]], 1))
+        elif isinstance(e[0], DAGOpNode) and isinstance(e[1], DAGOpNode):
+            edges.append((gate_to_index[e[0]], gate_to_index[e[1]], 1))
     g = rx.PyGraph()
-    # TODO
+    g.add_nodes_from(range(len(gn) + n))
+    g.add_edges_from(edges)
     return g
 
 
+
 # ───────────────────────────────────────── graph-based features
-
-class QuantumGraph:
-
-    def __init__(self, circuit: QuantumCircuit = None):
-        """
-        Initializes the QuantumGraph with a given QuantumCircuit.
-        Args:
-            circuit (QuantumCircuit, optional): The quantum circuit to analyze.
-        """
-        self.circuit = circuit
-        self.rustxgraph = None  # Placeholder for the rustworkx graph
-    def extractAllFeatures(self) -> dict[str, Any]:
-        return {}
 
 
 class IGGraphExtractor():
@@ -335,17 +360,18 @@ class IGGraphExtractor():
 
 # GDG class
 
-class GDGGraphExtractor(QuantumGraph):
-    def __init__(self, circuit: QuantumCircuit):
+class GDGGraphExtractor():
+    def __init__(self, circuit: QuantumCircuit, feature_extractor: FeatureExtracter = None):
         """
         Initializes the GDGGraph with a QuantumCircuit.
         Converts the circuit to a rustworkx graph and precomputes shortest path distances.
         Args:
             circuit (QuantumCircuit): The quantum circuit to analyze.
         """
-        super().__init__(circuit)
         self.rustxgraph = convertToPyGraphGDG(circuit)
-        self.extracted_features = {}
+        self.circuit = circuit
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
     
     def extractAllFeatures(self) -> dict[str, Any]:
         # Placeholder for GDG features extraction
