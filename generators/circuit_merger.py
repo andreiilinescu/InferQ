@@ -65,6 +65,8 @@ class CircuitMerger:
     def __init__(self, base_params: BaseParams):
         self.base_params = base_params
         self.generators = self.initialize_generators()
+        random.seed(base_params.seed)
+        np.random.seed(base_params.seed)
 
     def initialize_generators(self) -> List[Generator]:
         """
