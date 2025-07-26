@@ -120,19 +120,115 @@ class StaticFeatureExtractor():
         self.extracted_features["pauli_gate_count"] = value
         return {"pauli_gate_count": value}
 
+    def getQiskitCircuitDepth(self):
+        """
+        Returns the depth of the circuit.
+        Returns:
+            dict: {"depth": int}
+        """
+        if "depth" in self.extracted_features:
+            return {"depth": self.extracted_features["depth"]}
+        value = self.circuit.depth() if self.circuit else 0
+        self.extracted_features["depth"] = value
+        return {"depth": value}
+    
+    def getDensityScore(self):
+        """
+        Bandic et al. method. 
+        Calculated by (((2*number of two qubit gates + number of single qubit gates) / decomposed circuit depth) -1)/(number of qubits - 1)
+        Returns:
+            dict: {"density_score": float}
+        """
+        if "density_score" in self.extracted_features:
+            return {"density_score": self.extracted_features["density_score"]}
+        if not self.circuit:
+            self.extracted_features["density_score"] = 0.0
+            return {"density_score": 0.0}
+        two_qubit_gates = self.getTwoQubitGateCount()["two_qubit_gate_count"]
+        single_qubit_gates = len(self.getGateCounts()["gate_counts"])
+        depth = self.getQiskitCircuitDepth()["depth"]
+        num_qubits = self.getNumberOfQubits()["num_qubits"]
+        if depth == 0 or num_qubits <= 1:
+            self.extracted_features["density_score"] = 0.0
+            return {"density_score": 0.0}
+        density_score = (((2 * two_qubit_gates + single_qubit_gates) / depth) - 1) / (num_qubits - 1)
+        self.extracted_features["density_score"] = density_score
+        return {"density_score": density_score}
+
+    def getIdlingScore(self):
+        '''
+        Calculates the idling score of the circuit. As written in Bandic et al.
+        The idling score is defined as the average number of times a qubit is not used in the circuit.
+        It is calculated as the sum of (depth - usage) for each qubit, divided
+        by the product of the number of qubits and the depth of the circuit.
+        Returns:
+            dict: {"idling_score": float}
+        '''
+        if "idling_score" in self.extracted_features:
+            return {"idling_score": self.extracted_features["idling_score"]}
+        if not self.circuit:
+            self.extracted_features["idling_score"] = 0.0
+            return {"idling_score": 0.0}
+        num_qubits = self.extracted_features["num_qubits"]
+        depth = self.circuit.depth()["depth"]
+        if depth == 0 or num_qubits <= 1:
+            self.extracted_features["idling_score"] = 0.0
+            return {"idling_score": 0.0}
+        qubit_usage = [0] * num_qubits
+        
+        for circuit_instruction in self.circuit.data:
+            for q in circuit_instruction.qubits:
+                qubit_usage[q.index] += 1
+
+        if sum(qubit_usage) == 0:
+            self.extracted_features["idling_score"] = 0.0
+            return {"idling_score": 0.0}
+        # Calculate idling score
+        idling_score = sum((depth - usage) for usage in qubit_usage) / (num_qubits * depth)
+        self.extracted_features["idling_score"] = idling_score
+        return {"idling_score": idling_score}
+    
+        
+
     def extractAllFeatures(self) -> dict[str, Any]:
         """
         Extracts all basic features from the quantum circuit.
+        If a feature method throws an error, None is put in the dict for that feature.
+        Print messages are shown only if extract.py is the main file.
         Returns:
             dict: All extracted features.
         """
-        features = {
-            "num_qubits": self.getNumberOfQubits()["num_qubits"],
-            "gate_counts": self.getGateCounts()["gate_counts"],
-            "width": self.getWidth()["width"],
-            "name": self.getName()["name"],
-            "pauli_gate_count": self.getPauliGateCount()["pauli_gate_count"],
-            "two_qubit_gate_count": self.getTwoQubitGateCount()["two_qubit_gate_count"],
-            "two_qubit_gate_percentage": self.getTwoQubitGatePercentage()["two_qubit_gate_percentage"]
-        }
+        import sys
+        
+        is_main = sys.argv[0].endswith("extract.py")
+        if is_main:
+            print("Starting Static feature extraction...\n")
+        features = {}
+        feature_methods = [
+            ("num_qubits", self.getNumberOfQubits),
+            ("gate_counts", self.getGateCounts),
+            ("width", self.getWidth),
+            ("name", self.getName),
+            ("pauli_gate_count", self.getPauliGateCount),
+            ("two_qubit_gate_count", self.getTwoQubitGateCount),
+            ("two_qubit_gate_percentage", self.getTwoQubitGatePercentage),
+            ("depth", self.getQiskitCircuitDepth),
+            ("density_score", self.getDensityScore),
+            ("idling_score", self.getIdlingScore),
+        ]
+        is_main = sys.argv[0].endswith("extract.py")
+        for key, method in feature_methods:
+            try:
+                result = method()
+                # result is a dict with one key
+                value = list(result.values())[0] if isinstance(result, dict) and result else None
+                features[key] = value
+                if is_main:
+                    print(f"{key} feature completed.")
+            except Exception as e:
+                features[key] = None
+                if is_main:
+                    print(f"{key} feature failed: {e}")
+        if is_main:
+            print("Done extracting Static features.\n\n")
         return features

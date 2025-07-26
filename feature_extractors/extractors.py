@@ -26,8 +26,8 @@ def extract_features(circuit: QuantumCircuit):
     dynamic_feature_extractor = DynamicFeatureExtractor(circuit=circuit, feature_extractor=feature_extractor)
     
     # Extract features
-    features = graph_feature_extractor.extractAllFeatures()
-    features.update(static_feature_extractor.extractAllFeatures())
+    features = static_feature_extractor.extractAllFeatures()
+    features.update(graph_feature_extractor.extractAllFeatures())
     features.update(dynamic_feature_extractor.extractAllFeatures())
     
     return features

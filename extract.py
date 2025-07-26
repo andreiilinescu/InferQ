@@ -18,9 +18,13 @@ from rustworkx.visualization import mpl_draw
 # iggraph = IGGraph(circuit=circuit)
 
 
-base_params=BaseParams(max_qubits=10, min_qubits=2, max_depth=50,min_depth=2)
+base_params=BaseParams(max_qubits=10, min_qubits=2, max_depth=50,min_depth=10)
 circuitMerger=CircuitMerger(base_params=base_params)
 circuit=circuitMerger.generate_hierarchical_circuit()
+
+# base_params=BaseParams(max_qubits=30, min_qubits=20, max_depth=100,min_depth=50)
+# circuitMerger=CircuitMerger(base_params=base_params)
+# circuit=circuitMerger.generate_hierarchical_circuit()
 
 # print(circuit)
 # # Draw the graph
@@ -33,4 +37,5 @@ circuit=circuitMerger.generate_hierarchical_circuit()
 # Let us use the fetaure extractors and get the metrics
 print("IG graph Metrics for Circuit\n\n\n\n\n")
 features = extract_features(circuit=circuit)
-print(features)
+# print(features)
+print("\n".join("{}\t{}".format(k, v) for k, v in features.items()))

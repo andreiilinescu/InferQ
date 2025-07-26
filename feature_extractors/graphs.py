@@ -12,6 +12,7 @@ import numpy as np
 from feature_extractors.static_features import FeatureExtracter
 from qiskit.circuit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode, DAGInNode, DAGOutNode
+import sys
 
 
 def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
@@ -347,26 +348,46 @@ class IGGraphExtractor():
     def extractAllFeatures(self) -> dict[str, Any]:
         """
         Extracts all features defined in IGGraph and returns them as a single dictionary.
+        If a feature method throws an error, None is put in the dict for that feature.
+        Print messages are shown only if extract.py is the main file.
         Returns:
             dict: All extracted features.
         """
-        import inspect
-        # Only get methods defined in IGGraph, not inherited
-        methods = [
-            getattr(self, name)
-            for name, obj in self.__class__.__dict__.items()
-            if inspect.isfunction(obj) and not name.startswith("__") and name != "extractAllFeatures"
+        
+        is_main = sys.argv[0].endswith("extract.py")
+        if is_main:
+            print("Starting IGGraph feature extraction...\n")
+        features = {}
+        feature_methods = [
+            ("igdepth", self.getIGDepth),
+            ("diameter", self.getDiameter),
+            ("connected_components", self.getConnectedComponents),
+            ("max_degree", self.getMaxDegree),
+            ("min_cut_upper", self.getMinCut),
+            ("edge_count", self.getEdgeCount),
+            ("node_count", self.getNodeCount),
+            ("average_degree", self.getAverageDegree),
+            ("std_dev_adjacency_matrix", self.getStandardDeviationAdjacencyMatrix),
+            ("central_point_of_dominance", self.getCentralPointOfDominence),
+            ("core_number", self.getCoreNumber),
+            ("average_clustering_coefficient", self.getAverageClusteringCoefficient),
+            ("average_shortest_path_length", self.getAverageShortestPathLength),
+            ("pagerank", self.getPageRank),
         ]
-        result = {}
-        for method in methods:
+        for key, method in feature_methods:
             try:
-                output = method()
-                if isinstance(output, dict):
-                    result.update(output)
+                result = method()
+                value = list(result.values())[0] if isinstance(result, dict) and result else None
+                features[key] = value
+                if is_main:
+                    print(f"{key} feature completed.")
             except Exception as e:
-                print(f"Error in method {method.__name__}: {e}")
-                continue  # Skip methods that raise exceptions
-        return result
+                features[key] = None
+                if is_main:
+                    print(f"{key} feature failed: {e}")
+        if is_main:
+            print("Done extracting IGGraph features. \n\n")
+        return features
 
 
 
@@ -385,6 +406,7 @@ class GDGGraphExtractor():
         self.circuit = circuit
         self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
         self.extracted_features = self.feature_extractor.extracted_features
+        self.dagdependecy = circuit_to_dagdependency(circuit) if circuit else None
     
     def getCriticalPathLength(self):
         """
@@ -398,11 +420,48 @@ class GDGGraphExtractor():
         self.extracted_features["critical_path_length"] = critical_path_length
         return {"critical_path_length": critical_path_length}
     
+    def getPercentageOfGatesInCriticalPath(self):
+        """
+        Returns the percentage of gates that are part of the critical path.
+        Returns:
+            dict: {"percentage_of_gates_in_critical_path": float}
+        """
+        if "percentage_of_gates_in_critical_path" in self.extracted_features:
+            return {"percentage_of_gates_in_critical_path": self.extracted_features["percentage_of_gates_in_critical_path"]}
+        critical_path_length = self.getCriticalPathLength()["critical_path_length"]
+        total_gates = self.circuit.size()
+        percentage = (critical_path_length / total_gates) * 100 if total_gates > 0 else 0.0
+        self.extracted_features["percentage_of_gates_in_critical_path"] = percentage
+        return {"percentage_of_gates_in_critical_path": percentage}
+
     def extractAllFeatures(self) -> dict[str, Any]:
         """
         Extracts all features defined in GDGGraph and returns them as a single dictionary.
+        If a feature method throws an error, None is put in the dict for that feature.
+        Print messages are shown only if extract.py is the main file.
         Returns:
             dict: All extracted features.
         """
-        self.getCriticalPathLength()  # Ensure critical path length is calculated
-        return self.extracted_features
+        
+        is_main = sys.argv[0].endswith("extract.py")
+        if is_main:
+            print("Starting GDGGraph feature extraction...\n")
+        features = {}
+        feature_methods = [
+            ("critical_path_length", self.getCriticalPathLength),
+            ("percentage_of_gates_in_critical_path", self.getPercentageOfGatesInCriticalPath),
+        ]
+        for key, method in feature_methods:
+            try:
+                result = method()
+                value = list(result.values())[0] if isinstance(result, dict) and result else None
+                features[key] = value
+                if is_main:
+                    print(f"{key} feature completed.")
+            except Exception as e:
+                features[key] = None
+                if is_main:
+                    print(f"{key} feature failed: {e}")
+        if is_main:
+            print("Done extracting GDGGraph features. \n\n")
+        return features
