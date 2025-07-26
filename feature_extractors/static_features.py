@@ -170,7 +170,7 @@ class StaticFeatureExtractor():
             self.extracted_features["idling_score"] = 0.0
             return {"idling_score": 0.0}
         num_qubits = self.extracted_features["num_qubits"]
-        depth = self.circuit.depth()["depth"]
+        depth = self.circuit.depth()
         if depth == 0 or num_qubits <= 1:
             self.extracted_features["idling_score"] = 0.0
             return {"idling_score": 0.0}
@@ -178,7 +178,8 @@ class StaticFeatureExtractor():
         
         for circuit_instruction in self.circuit.data:
             for q in circuit_instruction.qubits:
-                qubit_usage[q.index] += 1
+                s = int(str(q).split("index=")[1].split(")")[0].split(">")[0])
+                qubit_usage[s] += 1
 
         if sum(qubit_usage) == 0:
             self.extracted_features["idling_score"] = 0.0
@@ -224,11 +225,11 @@ class StaticFeatureExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"{key} feature completed.")
+                    print(f"\t{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"{key} feature failed: {e}")
+                    print(f"\t\t{key} feature failed: {e}")
         if is_main:
             print("Done extracting Static features.\n\n")
         return features

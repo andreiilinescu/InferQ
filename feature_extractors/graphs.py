@@ -380,11 +380,11 @@ class IGGraphExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"{key} feature completed.")
+                    print(f"\t{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"{key} feature failed: {e}")
+                    print(f"\t\t{key} feature failed: {e}")
         if is_main:
             print("Done extracting IGGraph features. \n\n")
         return features
@@ -457,11 +457,11 @@ class GDGGraphExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"{key} feature completed.")
+                    print(f"\t{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"{key} feature failed: {e}")
+                    print(f"\t\t{key} feature failed: {e}")
         if is_main:
             print("Done extracting GDGGraph features. \n\n")
         return features

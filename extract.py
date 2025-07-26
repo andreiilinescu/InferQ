@@ -18,7 +18,7 @@ from rustworkx.visualization import mpl_draw
 # iggraph = IGGraph(circuit=circuit)
 
 
-base_params=BaseParams(max_qubits=10, min_qubits=2, max_depth=50,min_depth=10)
+base_params=BaseParams(max_qubits=3, min_qubits=2, max_depth=5,min_depth=1)
 circuitMerger=CircuitMerger(base_params=base_params)
 circuit=circuitMerger.generate_hierarchical_circuit()
 
