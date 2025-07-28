@@ -2,6 +2,7 @@ from feature_extractors.graph_features import GraphFeatureExtracter
 from feature_extractors.static_features import StaticFeatureExtractor
 from feature_extractors.dynamic_features import DynamicFeatureExtractor
 from feature_extractors.static_features import FeatureExtracter
+from feature_extractors.graphs import IGGraphExtractor, GDGGraphExtractor
 from qiskit import QuantumCircuit
 
 
@@ -21,7 +22,8 @@ def extract_features(circuit: QuantumCircuit):
     
     # Initialize feature extractors
     feature_extractor = FeatureExtracter(circuit=circuit)
-    graph_feature_extractor = GraphFeatureExtracter(circuit=circuit, feature_extractor=feature_extractor)
+    # graph_feature_extractor = GraphFeatureExtracter(circuit=circuit, feature_extractor=feature_extractor)
+    graph_feature_extractor = IGGraphExtractor(circuit=circuit, feature_extractor=feature_extractor)
     static_feature_extractor = StaticFeatureExtractor(circuit=circuit, feature_extractor=feature_extractor)
     dynamic_feature_extractor = DynamicFeatureExtractor(circuit=circuit, feature_extractor=feature_extractor)
     

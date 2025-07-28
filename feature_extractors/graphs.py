@@ -24,11 +24,23 @@ def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
         rx.PyGraph: The constructed graph.
     """
     dag = circuit_to_dag(circ)
-    alledges = [
-        tuple(sorted((q, q2)))
-        for gate in dag.two_qubit_ops()
-        for (q, q2) in [tuple(sorted([q._index for q in gate.qargs]))]
-    ]
+    # not only 2 qubit ops, but all gates, we need add interaction between qubits. e.g otffoli (ccx) gate acting
+    # on 3 qubits, we will add edges between all 3 qubits 0, 1, 2
+    # so we will add edges between (0,1), (0,2), (1,2) and so on
+    # we will add edges between all qubits that are involved in the gate
+    # alledges = [
+    #     tuple(sorted((q, q2)))
+    #     for gate in dag.two_qubit_ops()
+    #     for (q, q2) in [tuple(sorted([q._index for q in gate.qargs]))]
+    # ] OLD IMPLEMENTATION
+    alledges = []
+    for gate in dag.gate_nodes():
+        qubits = [int(str(qubit).split("index=")[1].split(")")[0].split(">")[0]) for qubit in gate.qargs]
+        if len(qubits) < 2:
+            continue
+        for i in range(len(qubits)):
+            for j in range(i + 1, len(qubits)):
+                alledges.append((qubits[i], qubits[j]))
     edges = {}
     for edge in alledges:
         if edge in edges.keys():
@@ -361,6 +373,7 @@ class IGGraphExtractor():
         feature_methods = [
             ("igdepth", self.getIGDepth),
             ("diameter", self.getDiameter),
+            ("radius", self.getRadius),
             ("connected_components", self.getConnectedComponents),
             ("max_degree", self.getMaxDegree),
             ("min_cut_upper", self.getMinCut),
