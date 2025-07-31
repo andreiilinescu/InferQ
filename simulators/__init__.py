@@ -22,7 +22,7 @@ Functions:
     benchmark_simulation_methods: Comprehensive benchmarking utility
 """
 
-from .simulate import QuantumSimulator, SimulationMethod, simulate
+from .simulate import QuantumSimulator, SimulationMethod
 from .simulation_utils import SimulationAnalyzer, SimulationMetrics, benchmark_simulation_methods
 
 __all__ = [
