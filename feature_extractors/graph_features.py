@@ -1,28 +1,27 @@
-from collections import Counter
 from pathlib import Path
-import json, hashlib, gzip, uuid, qiskit
+from feature_extractors.graphs import *
+import json, hashlib
+from typing import Any
+import inspect
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
-import retworkx as rx
+from feature_extractors.static_features import FeatureExtracter
+
+class GraphFeatureExtracter():
+    def __init__(self, circuit: QuantumCircuit = None, feature_extractor: FeatureExtracter = None):
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
+        self.circuit = circuit if circuit else self.feature_extractor.circuit
+    
+    def extractAllFeatures(self) -> dict[str, Any]:
+        # We are going to extract using IGGraph
+        iggraph = IGGraphExtractor(circuit=self.circuit, feature_extractor=self.feature_extractor)
+        self.extracted_features = iggraph.extractAllFeatures()
+
+        # We are also going to add the GDG based features
+        gdggraph = GDGGraphExtractor(circuit=self.circuit, feature_extractor=self.feature_extractor)
+        self.extracted_features.update(gdggraph.extractAllFeatures())
+
+        return self.extracted_features
 
 
-# ───────────────────────────────────────── graph-based features
-def graph_features(circ: QuantumCircuit) -> dict:
-    dag = circuit_to_dag(circ)
-    edges = {
-        (q, q2)
-        for gate in dag.two_qubit_ops()
-        for (q, q2) in [tuple(sorted([q._index for q in gate.qargs]))]
-    }
-    try:
-        import rustworkx as rx
-    except ImportError:
-        import retworkx as rx
-    g = rx.PyGraph()
-    g.add_nodes_from(range(circ.num_qubits))
-    g.add_edges_from([(q, q2, None) for (q, q2) in edges])
 
-    degrees = [g.degree(node) for node in range(circ.num_qubits)]
-    max_deg = max(degrees) if degrees else 0
-    min_cut = rx.stoer_wagner_min_cut(g)[0] if g.num_edges() else 0
-    return {"max_degree": int(max_deg), "min_cut_upper": int(min_cut)}

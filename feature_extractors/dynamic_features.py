@@ -1,54 +1,105 @@
-from collections import Counter
-from pathlib import Path
-import json, hashlib, gzip, uuid, qiskit
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
-import retworkx as rx
-import numpy as np
+from feature_extractors.static_features import FeatureExtracter
+
+from typing import Any
+
+class DynamicFeatureExtractor():
+    def __init__(self, circuit: QuantumCircuit = None, feature_extractor: FeatureExtracter = None):
+        """
+        Initializes the DynamicFeatureExtractor with a given QuantumCircuit.
+        Args:
+            circuit (QuantumCircuit, optional): The quantum circuit to analyze.
+        """
+        self.feature_extractor = feature_extractor if feature_extractor else FeatureExtracter(circuit=circuit)
+        self.extracted_features = self.feature_extractor.extracted_features
+        self.circuit = circuit if circuit else self.feature_extractor.circuit
+    
+    def getSparsity(self):
+        """
+        Returns the sparsity of the circuit.
+        Returns:
+            dict: {"sparsity": float}
+        """
+        if "sparsity" in self.extracted_features:
+            return {"sparsity": self.extracted_features["sparsity"]}
+        if not self.circuit:
+            self.extracted_features["sparsity"] = 0.0
+            return {"sparsity": 0.0}
+        
+        num_qubits = self.circuit.num_qubits
+        num_gates = len(self.circuit.data)
+        sparsity = num_gates / (num_qubits * (num_qubits - 1)) if num_qubits > 1 else 0.0
+        self.extracted_features["sparsity"] = sparsity
+        return {"sparsity": sparsity}
+
+    def getQuantumLocalityRatio(self):
+        '''
+        This measure the ratio between number of gates acting on local qubits vs long ditance ones. So if gates act on qubits that are close to each other, the locality ratio will be high.
+        Returns:
+            dict: {"locality_ratio": float}
+        '''
+        if "locality_ratio" in self.extracted_features:
+            return {"locality_ratio": self.extracted_features["locality_ratio"]}
+        if not self.circuit:
+            self.extracted_features["locality_ratio"] = 0.0
+            return {"locality_ratio": 0.0}
+        num_qubits = self.circuit.num_qubits
+        num_gates = len(self.circuit.data)
+        if num_qubits < 2:
+            self.extracted_features["locality_ratio"] = 0.0
+            return {"locality_ratio": 0.0}
+        # for each gate, extracting the qubit indices
+        # then check if they are all adjacent qubits. If not, then it is a long distance gate
+        long_distance_gates = 0
+        local_gates = 0
+        for gate in self.circuit.data:
+            qubits = [int(str(qubit).split("index=")[1].split(")")[0].split(">")[0]) for qubit in gate[1]]
+            if len(qubits) < 2:
+                local_gates += 1
+                continue
+            if all(abs(qubits[i] - qubits[i + 1]) == 1 for i in range(len(qubits) - 1)):
+                local_gates += 1
+            else:
+                long_distance_gates += 1
+        locality_ratio = local_gates / (local_gates + long_distance_gates) if (local_gates + long_distance_gates) > 0 else 0.0
+        self.extracted_features["locality_ratio"] = locality_ratio
+        return {"locality_ratio": locality_ratio}
 
 
-# ───────────────────────────────────────── dynamic probes (cheap)
-def probe_sparsity(circ: QuantumCircuit, limit: int = 100_000) -> int:
-    """Run a sparse simulator until support exceeds `limit` amplitudes."""
-    from qiskit_aer import Aer
+    def extractAllFeatures(self) -> dict[str, Any]:
+        """
+        Extracts all basic features from the quantum circuit.
+        If a feature method throws an error, None is put in the dict for that feature.
+        Print messages are shown only if extract.py is the main file.
+        Returns:
+            dict: All extracted features.
+        """
+        import sys
+        
+        is_main = sys.argv[0].endswith("extract.py")
+        if is_main:
+            print("Starting Dynamic feature extraction...\n")
+        features = {}
+        feature_methods = [
+            ("sparsity", self.getSparsity),
+            ("locality_ratio", self.getQuantumLocalityRatio),
+        ]
+        is_main = sys.argv[0].endswith("extract.py")
+        for key, method in feature_methods:
+            try:
+                result = method()
+                # result is a dict with one key
+                value = list(result.values())[0] if isinstance(result, dict) and result else None
+                features[key] = value
+                if is_main:
+                    print(f"\t{key} feature completed.")
+            except Exception as e:
+                features[key] = None
+                if is_main:
+                    print(f"\t\t{key} feature failed: {e}")
+        if is_main:
+            print("Done extracting Dynamic features.\n\n")
+        return features
+    
 
-    backend = Aer.get_backend("aer_simulator_statevector")
-    backend.set_options(method="statevector", max_parallel_threads=1)
-    qc = circ.copy()
-    qc.save_statevector()
-    n_support = 2**circ.num_qubits  # pessimistic start
-    try:
-        result = backend.run(qc, shots=0, optimization_level=0).result()
-        state = result.get_statevector(qc)
-        n_support = np.count_nonzero(np.abs(state) > 1e-12)
-    except MemoryError:
-        pass  # aborted → keep pessimistic number
-    return int(min(n_support, limit * 10))
-
-
-def probe_bond_dim(circ: QuantumCircuit, cap: int = 64) -> int:
-    """Run MPS sim with capped bond; return max bond reached or cap+."""
-    from qiskit_aer import Aer
-
-    backend = Aer.get_backend("aer_simulator")
-    backend.set_options(
-        method="matrix_product_state", max_bond_dimension=cap, max_parallel_threads=1
-    )
-    qc = circ.copy()
-    qc.save_expectation_value(
-        pauli="Z" * circ.num_qubits, qubits=list(range(circ.num_qubits))
-    )
-    try:
-        result = backend.run(qc, shots=0).result()
-        meta = result.results[0].metadata
-        max_bond = meta.get("max_bond_dimension", cap + 1)
-    except Exception:
-        max_bond = cap + 1
-    return int(max_bond)
-
-
-def dynamic_features(circ):
-    return {
-        "sparsity_est": probe_sparsity(circ),
-        "bond_dim_est": probe_bond_dim(circ),
-    }
+    
