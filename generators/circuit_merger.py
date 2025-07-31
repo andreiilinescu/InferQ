@@ -65,6 +65,8 @@ class CircuitMerger:
     def __init__(self, base_params: BaseParams):
         self.base_params = base_params
         self.generators = self.initialize_generators()
+        random.seed(base_params.seed)
+        np.random.seed(base_params.seed)
 
     def initialize_generators(self) -> List[Generator]:
         """
@@ -111,9 +113,9 @@ class CircuitMerger:
 
         for step in range(max_generators):
             # Print current probability distribution for transparency
-            if step == 0:
-                print("\nInitial probability distribution:")
-                self._print_probability_distribution(current_probs, step)
+            # if step == 0:
+            #     print("\nInitial probability distribution:")
+            #     self._print_probability_distribution(current_probs, step)
 
             # Check if we should stop (except for first generator)
             if step > 0 and random.random() < stopping_probability:

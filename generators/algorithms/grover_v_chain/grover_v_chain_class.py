@@ -8,6 +8,7 @@ from generators.lib.parameters import (
     num_qbits,
     grover_target_bitstring,
     grover_iterations,
+    depth
 )
 from generators.algorithms.grover_v_chain.grover_v_chain import generate
 from typing import Optional
@@ -69,9 +70,7 @@ class GroverVChain(Generator):
             self.n_qubits, seed=self.base_params.seed
         )
 
-        self.iterations = grover_iterations(
-            self.n_qubits, seed=self.base_params.seed, use_optimal=True
-        )
+        self.iterations = depth(self.base_params.min_depth,self.base_params.max_depth,self.base_params.seed)
 
         return self.n_qubits, self.target_bitstring, self.iterations
 
