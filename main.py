@@ -1,10 +1,14 @@
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
+
 from utils.save_utils import save_circuit_locally,create_circuits_table, save_circuit_metadata, upload_circuit_blob
 from utils.azure_connection import AzureConnection
 from utils.features_const import FEATURES_LIST
-from pathlib import Path
+
+from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
+
+from pathlib import Path
 import logging
 
 from qiskit_aer import AerSimulator
@@ -22,12 +26,8 @@ def run_extraction_pipeline(circuitMerger:CircuitMerger,quantumSimulator:Quantum
     print(f"Generated circuit: {circ.num_qubits} qubits, depth {circ.depth()}, size {circ.size()}")
     
     # feature extraction step
-    extracted_features={
-        "num_qubits": circ.num_qubits,
-        "circuit_depth": circ.depth(),
-        "circuit_size": circ.size(),
-    }
-    
+    extracted_features=extract_features(circuit=circ)
+    print(extracted_features)
 
     # simulation step
     res=quantumSimulator.simulate_all_methods(circ)
