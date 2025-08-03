@@ -19,6 +19,7 @@ dependencies = [
     "atpublic==6.0.1",
     "attrs==25.3.0",
     "azure-core==1.34.0",
+    "azure-data-tables>=12.7.0",
     "azure-datalake-store==0.0.53",
     "azure-identity==1.23.0",
     "azure-storage-blob==12.25.1",

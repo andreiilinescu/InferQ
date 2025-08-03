@@ -178,12 +178,12 @@ class CircuitMerger:
             # Equal probability for all generators initially
             generators_probabilities = np.ones(len(self.generators))
 
-        print(
-            f"Starting hierarchical generation with {len(self.generators)} available generators..."
-        )
-        print(
-            f"Stopping probability: {stopping_probability}, Max generators: {max_generators}"
-        )
+        # print(
+        #     f"Starting hierarchical generation with {len(self.generators)} available generators..."
+        # )
+        # print(
+        #     f"Stopping probability: {stopping_probability}, Max generators: {max_generators}"
+        # )
 
         # Select generators based on probability
         selected_generators = self.select_generators_by_probability(
@@ -202,10 +202,10 @@ class CircuitMerger:
         successful_circuits = []
         for generator in selected_generators:
             try:
-                print(f"Generating parameters for {generator.__class__.__name__}...")
+                # print(f"Generating parameters for {generator.__class__.__name__}...")
                 params = generator.generate_parameters()
 
-                print(f"Generating circuit for {generator.__class__.__name__}...")
+                # print(f"Generating circuit for {generator.__class__.__name__}...")
                 if isinstance(params, tuple):
                     circuit = generator.generate(*params)
                 elif isinstance(params, dict):
@@ -216,13 +216,13 @@ class CircuitMerger:
                 if circuit is not None and hasattr(circuit, "data"):
                     circuit.name = generator.__class__.__name__
                     successful_circuits.append(circuit)
-                    print(
-                        f"✓ Generated {circuit.name}: {circuit.num_qubits}q, depth={circuit.depth()}"
-                    )
-                else:
-                    print(
-                        f"✗ {generator.__class__.__name__} returned None or invalid circuit"
-                    )
+                #     print(
+                #         f"✓ Generated {circuit.name}: {circuit.num_qubits}q, depth={circuit.depth()}"
+                #     )
+                # else:
+                #     print(
+                #         f"✗ {generator.__class__.__name__} returned None or invalid circuit"
+                #     )
 
             except Exception as e:
                 print(

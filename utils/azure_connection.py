@@ -5,48 +5,143 @@ from azure import identity
 from dotenv import load_dotenv
 import re
 from azure.storage.blob import ContainerClient
+from azure.data.tables import TableServiceClient, TableClient
+import logging
 
 load_dotenv()
-sql_connection_string = os.environ["AZURE_SQL_CONNECTIONSTRING"]
-container_connection_string=os.environ["AZURE_CONTAINER_SAS_URL"]
-PYTYPE_SQLTYPE = {
-    int:    "INT",
-    float:  "FLOAT",
-    bool:   "BIT",
-    str:    "NVARCHAR(MAX)",      # long strings
-    bytes:  "VARBINARY(MAX)",     # if you ever store blobs inline
-}
+
+# Configuration
+sql_connection_string = os.environ.get("AZURE_SQL_CONNECTIONSTRING")  # Optional now
+container_connection_string = os.environ["AZURE_CONTAINER_SAS_URL"]
+storage_account_name = os.environ["AZURE_STORAGE_ACCOUNT"]
+sas_token = os.environ["AZURE_STORAGE_SAS_TOKEN"]
+
+# Try to get account key from environment (more reliable for tables)
+storage_account_key = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+
+# Table configuration
+CIRCUITS_TABLE_NAME = "circuits"
+
+logger = logging.getLogger(__name__)
+
+def table_safe(name: str) -> str:
+    """
+    Turn arbitrary feature names into Azure Table-safe property names.
+    Azure Tables have restrictions on property names.
+    """
+    # Replace invalid characters with underscores
+    cleaned = re.sub(r"[^0-9A-Za-z_]", "_", name.strip())
+    # Ensure it doesn't start with a number
+    if cleaned and cleaned[0].isdigit():
+        cleaned = f"prop_{cleaned}"
+    return cleaned.lower()
 
 def sql_safe(name: str) -> str:
     """
-    Turn arbitrary feature names into SQL-safe identifiers:  spaces -> _ ,
-    parentheses, %, dots, etc. removed; wrapped in [ ] to avoid keyword clashes.
+    Turn arbitrary feature names into SQL-safe identifiers (kept for backward compatibility).
     """
     cleaned = re.sub(r"[^0-9A-Za-z_]", "_", name.strip())
     return f"[{cleaned.lower()}]"
 
 class AzureConnection:
     def __init__(self):
-        self.sql_conn=self.create_sql_conn()
-        self.container_client=self.create_container_client()
-    
+        self.container_client = self.create_container_client()
+        self.table_service_client = self.create_table_service_client()
+        self.circuits_table_client = self.create_circuits_table_client()
+        
+        # SQL connection is optional now
+        self.sql_conn = None
+        if sql_connection_string:
+            try:
+                self.sql_conn = self.create_sql_conn()
+            except Exception as e:
+                logger.warning(f"SQL connection failed: {e}")
 
     def create_sql_conn(self):
-        # credential = identity.DefaultAzureCredential(exclude_interactive_browser_credential=False)
-        # token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("UTF-16-LE")
-        # token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
-        # SQL_COPT_SS_ACCESS_TOKEN = 1256  # This connection option is defined by microsoft in msodbcsql.h
+        """Create SQL connection (optional, for backward compatibility)"""
+        if not sql_connection_string:
+            return None
         sql_conn = pyodbc.connect(sql_connection_string)
         return sql_conn
     
-    def create_container_client(self)->ContainerClient:
-        # Create a blob service client using the SAS token
-        # blob_service = BlobServiceClient(account_url=svc_url, credential=SAS)
+    def create_container_client(self) -> ContainerClient:
+        """Create blob container client"""
         container_client = ContainerClient.from_container_url(container_connection_string)
         return container_client
     
+    def create_table_service_client(self) -> TableServiceClient:
+        """Create table service client"""
+        account_url = f"https://{storage_account_name}.table.core.windows.net"
+        
+        # Try different authentication methods
+        if storage_account_key:
+            # Use account key (most reliable)
+            connection_string = f"DefaultEndpointsProtocol=https;AccountName={storage_account_name};AccountKey={storage_account_key};EndpointSuffix=core.windows.net"
+            table_service_client = TableServiceClient.from_connection_string(connection_string)
+        else:
+            # Fallback to SAS token (may have permission issues)
+            try:
+                # Try using SAS token directly
+                from azure.core.credentials import AzureSasCredential
+                clean_sas = sas_token.lstrip('?')
+                credential = AzureSasCredential(clean_sas)
+                table_service_client = TableServiceClient(endpoint=account_url, credential=credential)
+            except Exception as e:
+                logger.warning(f"SAS token authentication failed: {e}")
+                # Last resort: try with full URL
+                clean_sas = sas_token if sas_token.startswith('?') else f'?{sas_token}'
+                endpoint_with_sas = f"{account_url}{clean_sas}"
+                table_service_client = TableServiceClient(endpoint=endpoint_with_sas)
+        
+        return table_service_client
+    
+    def create_circuits_table_client(self) -> TableClient:
+        """Create table client for circuits table"""
+        account_url = f"https://{storage_account_name}.table.core.windows.net"
+        
+        # Try different authentication methods
+        if storage_account_key:
+            # Use account key (most reliable)
+            connection_string = f"DefaultEndpointsProtocol=https;AccountName={storage_account_name};AccountKey={storage_account_key};EndpointSuffix=core.windows.net"
+            table_client = TableClient.from_connection_string(connection_string, table_name=CIRCUITS_TABLE_NAME)
+        else:
+            # Fallback to SAS token
+            try:
+                from azure.core.credentials import AzureSasCredential
+                clean_sas = sas_token.lstrip('?')
+                credential = AzureSasCredential(clean_sas)
+                table_client = TableClient(endpoint=account_url, table_name=CIRCUITS_TABLE_NAME, credential=credential)
+            except Exception as e:
+                logger.warning(f"SAS token authentication failed: {e}")
+                # Last resort: try with full URL
+                clean_sas = sas_token if sas_token.startswith('?') else f'?{sas_token}'
+                endpoint_with_sas = f"{account_url}{clean_sas}"
+                table_client = TableClient(endpoint=endpoint_with_sas, table_name=CIRCUITS_TABLE_NAME)
+        
+        # Create table if it doesn't exist
+        try:
+            table_client.create_table()
+            logger.info(f"Created table: {CIRCUITS_TABLE_NAME}")
+        except Exception as e:
+            if "TableAlreadyExists" in str(e) or "already exists" in str(e).lower():
+                logger.debug(f"Table {CIRCUITS_TABLE_NAME} already exists")
+            else:
+                logger.warning(f"Error creating table: {e}")
+        
+        return table_client
+    
     def get_conn(self) -> pyodbc.Connection:
+        """Get SQL connection (optional, for backward compatibility)"""
         return self.sql_conn
     
-    def get_container_client(self)->ContainerClient:
+    def get_container_client(self) -> ContainerClient:
+        """Get blob container client"""
         return self.container_client
+    
+    def get_table_service_client(self) -> TableServiceClient:
+        """Get table service client"""
+        return self.table_service_client
+    
+    def get_circuits_table_client(self) -> TableClient:
+        """Get circuits table client"""
+        return self.circuits_table_client
