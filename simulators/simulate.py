@@ -210,17 +210,26 @@ class QuantumSimulator:
             # Extract relevant information based on method
             logger.debug(f"Extracting simulation data for {method.value}...")
             simulation_data = self._extract_simulation_data(result, method, transpiled_qc)
-            logger.debug(f"✓ Data extraction completed for {method.value}")
+            
+            # Check if data extraction had errors
+            has_extraction_error = 'extraction_error' in simulation_data
+            if has_extraction_error:
+                logger.debug(f"✗ Data extraction had errors for {method.value}")
+                success = False
+            else:
+                logger.debug(f"✓ Data extraction completed for {method.value}")
+                success = True
             
             return {
-                'success': True,
+                'success': success,
                 'method': method.value,
                 'result': result,
                 'data': simulation_data,
                 'circuit_depth': transpiled_qc.depth(),
                 'circuit_size': transpiled_qc.size(),
                 'num_qubits': transpiled_qc.num_qubits,
-                'num_clbits': transpiled_qc.num_clbits
+                'num_clbits': transpiled_qc.num_clbits,
+                'extraction_error': simulation_data.get('extraction_error') if has_extraction_error else None
             }
             
         except Exception as e:
@@ -272,7 +281,7 @@ class QuantumSimulator:
                 if 'stabilizer' in result.data(0):
                     data['stabilizer_state'] = result.data(0)['stabilizer']
             
-            elif method in [SimulationMethod.MPS, SimulationMethod.QASM]:
+            elif method == SimulationMethod.MPS:
                 if hasattr(result, 'get_counts') and qc.num_clbits > 0:
                     data['counts'] = result.get_counts(0)
                 if 'statevector' in result.data(0):
