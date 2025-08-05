@@ -56,17 +56,24 @@ def save_circuit_metadata_to_table(table_client: TableClient, features: Dict[str
         bool: True if successful, False otherwise
     """
     if "qpy_sha256" not in features:
+        logger.error("Missing required 'qpy_sha256' in features dictionary")
         raise ValueError("'features' dict must contain 'qpy_sha256'")
+    
+    circuit_hash = features["qpy_sha256"]
+    logger.info(f"Saving circuit metadata to table: {circuit_hash}")
+    logger.debug(f"Features to save: {len(features)} items")
     
     try:
         # Prepare entity for Azure Tables
+        logger.debug("Preparing entity for Azure Table Storage...")
         entity = {
             "PartitionKey": "circuits",  # Use a single partition for simplicity
-            "RowKey": features["qpy_sha256"],  # Use hash as unique row key
+            "RowKey": circuit_hash,  # Use hash as unique row key
             "Timestamp": datetime.now(timezone.utc),
         }
         
         # Add all features to the entity, ensuring property names are table-safe
+        processed_features = 0
         for key, value in features.items():
             if key == "qpy_sha256":
                 continue  # Already used as RowKey
@@ -85,20 +92,26 @@ def save_circuit_metadata_to_table(table_client: TableClient, features: Dict[str
             else:
                 # Convert other types to string
                 entity[safe_key] = str(converted_value)
+            
+            processed_features += 1
+        
+        logger.debug(f"✓ Processed {processed_features} features for table storage")
         
         # Try to insert or update the entity
+        logger.debug("Attempting to save entity to Azure Table...")
         try:
             table_client.create_entity(entity)
-            logger.info(f"✓ Circuit metadata saved to table: {features['qpy_sha256']}")
+            logger.info(f"✓ Circuit metadata saved to table: {circuit_hash}")
         except ResourceExistsError:
             # Entity exists, update it
+            logger.debug("Entity exists, updating...")
             table_client.update_entity(entity, mode="replace")
-            logger.info(f"✓ Circuit metadata updated in table: {features['qpy_sha256']}")
+            logger.info(f"✓ Circuit metadata updated in table: {circuit_hash}")
         
         return True
         
     except Exception as e:
-        logger.error(f"Failed to save metadata to table: {e}")
+        logger.error(f"Failed to save metadata to table for {circuit_hash}: {e}")
         return False
 
 def get_circuit_metadata_from_table(table_client: TableClient, qpy_sha256: str) -> Optional[Dict[str, Any]]:
@@ -112,14 +125,21 @@ def get_circuit_metadata_from_table(table_client: TableClient, qpy_sha256: str) 
     Returns:
         Dictionary containing circuit metadata or None if not found
     """
+    logger.info(f"Retrieving circuit metadata from table: {qpy_sha256}")
+    
     try:
+        logger.debug("Querying Azure Table Storage...")
         entity = table_client.get_entity(
             partition_key="circuits",
             row_key=qpy_sha256
         )
+        logger.debug("✓ Entity retrieved from table")
         
         # Convert entity back to regular dictionary
+        logger.debug("Converting entity to metadata dictionary...")
         metadata = {}
+        processed_fields = 0
+        
         for key, value in entity.items():
             if key in ["PartitionKey", "RowKey", "Timestamp", "etag"]:
                 continue  # Skip Azure Table system properties
@@ -133,17 +153,20 @@ def get_circuit_metadata_from_table(table_client: TableClient, qpy_sha256: str) 
                     metadata[key] = value
             else:
                 metadata[key] = value
+            
+            processed_fields += 1
         
         # Add the hash back
         metadata["qpy_sha256"] = qpy_sha256
         
+        logger.info(f"✓ Circuit metadata retrieved: {processed_fields} fields")
         return metadata
         
     except ResourceNotFoundError:
-        logger.warning(f"Circuit metadata not found: {qpy_sha256}")
+        logger.warning(f"Circuit metadata not found in table: {qpy_sha256}")
         return None
     except Exception as e:
-        logger.error(f"Failed to retrieve metadata from table: {e}")
+        logger.error(f"Failed to retrieve metadata from table for {qpy_sha256}: {e}")
         return None
 
 def list_circuits_from_table(table_client: TableClient, limit: int = 100) -> list:

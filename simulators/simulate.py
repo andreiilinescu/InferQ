@@ -150,22 +150,34 @@ class QuantumSimulator:
         Returns:
             Dictionary mapping method names to their simulation results
         """
+        logger.info(f"Starting simulation for circuit: {qc.num_qubits} qubits, depth {qc.depth()}, size {qc.size()}")
         results = {}
+        successful_methods = 0
+        failed_methods = 0
         
         for method in SimulationMethod:
             try:
-                logger.info(f"Running simulation with {method.value}")
+                logger.debug(f"Attempting {method.value} simulation...")
                 result = self._run_simulation(qc, method, **kwargs)
                 results[method.value] = result
-                logger.info(f"✓ {method.value} simulation completed successfully")
+                
+                if result.get('success', False):
+                    successful_methods += 1
+                    logger.info(f"✓ {method.value} simulation completed successfully")
+                else:
+                    failed_methods += 1
+                    logger.warning(f"✗ {method.value} simulation failed: {result.get('error', 'Unknown error')}")
+                    
             except Exception as e:
-                logger.warning(f"✗ {method.value} simulation failed: {e}")
+                failed_methods += 1
+                logger.warning(f"✗ {method.value} simulation failed with exception: {e}")
                 results[method.value] = {
                     'success': False,
                     'error': str(e),
                     'method': method.value
                 }
         
+        logger.info(f"Simulation summary: {successful_methods} successful, {failed_methods} failed out of {len(SimulationMethod)} methods")
         return results
     
     def _run_simulation(self, qc: QuantumCircuit, method: SimulationMethod, **kwargs) -> Dict[str, Any]:
@@ -182,16 +194,23 @@ class QuantumSimulator:
         """
         try:
             simulator = self.simulators[method]
+            logger.debug(f"Using simulator: {simulator.name} for {method.value}")
             
             # Transpile circuit for the specific simulator
+            logger.debug(f"Transpiling circuit for {method.value}...")
             transpiled_qc = transpile(qc, simulator)
+            logger.debug(f"✓ Circuit transpiled: depth {transpiled_qc.depth()}, size {transpiled_qc.size()}")
             
             # Run the simulation
+            logger.debug(f"Executing {method.value} simulation...")
             job = simulator.run(transpiled_qc, **kwargs)
             result = job.result()
+            logger.debug(f"✓ {method.value} simulation job completed")
             
             # Extract relevant information based on method
+            logger.debug(f"Extracting simulation data for {method.value}...")
             simulation_data = self._extract_simulation_data(result, method, transpiled_qc)
+            logger.debug(f"✓ Data extraction completed for {method.value}")
             
             return {
                 'success': True,

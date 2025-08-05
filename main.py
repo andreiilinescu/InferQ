@@ -30,72 +30,149 @@ logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)
 logging.getLogger('azure.data.tables').setLevel(logging.WARNING)
 logging.getLogger('azure.core').setLevel(logging.WARNING)
 
+# Configure main logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: QuantumSimulator, azure_conn: AzureConnection = None):
-    # generate Step
-    circ = circuitMerger.generate_hierarchical_circuit()
-    print(f"Generated circuit: {circ.num_qubits} qubits, depth {circ.depth()}, size {circ.size()}")
+    logger.info("=" * 60)
+    logger.info("STARTING QUANTUM CIRCUIT EXTRACTION PIPELINE")
+    logger.info("=" * 60)
     
-    # feature extraction step
-    extracted_features = extract_features(circuit=circ)
-    print("Extracted features:", extracted_features)
-
-    # simulation step 
-    res = quantumSimulator.simulate_all_methods(circ)
-
-    # save step
-    ## locally 
-    qpy_hash, features, written = save_circuit_locally(circ, extracted_features, Path("./circuits/")) 
+    # Step 1: Circuit Generation
+    logger.info("STEP 1: Circuit Generation")
+    logger.info("-" * 30)
+    try:
+        circ = circuitMerger.generate_hierarchical_circuit()
+        logger.info(f"✓ Generated circuit: {circ.num_qubits} qubits, depth {circ.depth()}, size {circ.size()}")
+    except Exception as e:
+        logger.error(f"Circuit generation failed: {e}")
+        raise
     
-    ## remote (Azure Table Storage)
+    # Step 2: Feature Extraction
+    logger.info("\nSTEP 2: Feature Extraction")
+    logger.info("-" * 30)
+    try:
+        extracted_features = extract_features(circuit=circ)
+        logger.info(f"✓ Feature extraction completed: {len(extracted_features)} features")
+        logger.debug(f"Feature keys: {list(extracted_features.keys())}")
+    except Exception as e:
+        logger.error(f"Feature extraction failed: {e}")
+        raise
+
+    # Step 3: Quantum Simulation
+    logger.info("\nSTEP 3: Quantum Simulation")
+    logger.info("-" * 30)
+    try:
+        res = quantumSimulator.simulate_all_methods(circ)
+        successful_sims = sum(1 for r in res.values() if r.get('success', False))
+        total_sims = len(res)
+        logger.info(f"✓ Simulation completed: {successful_sims}/{total_sims} methods successful")
+    except Exception as e:
+        logger.error(f"Simulation failed: {e}")
+        raise
+    
+    # Step 4: Local Storage
+    logger.info("\nSTEP 4: Local Storage")
+    logger.info("-" * 30)
+    try:
+        qpy_hash, features, written = save_circuit_locally(circ, extracted_features, Path("./circuits/"))
+        if written:
+            logger.info(f"✓ Circuit saved locally with hash: {qpy_hash}")
+            logger.info(f"✓ Serialization method: {features.get('serialization_method', 'unknown')}")
+        else:
+            logger.info(f"Circuit {qpy_hash} already exists locally")
+    except Exception as e:
+        logger.error(f"Local storage failed: {e}")
+        raise
+    
+    # Step 5: Cloud Storage (if available)
     if written and azure_conn:
-        print(f"✓ Circuit saved locally with hash: {qpy_hash}")
-        print(f"Serialization method: {features.get('serialization_method', 'unknown')}")
+        logger.info("\nSTEP 5: Cloud Storage")
+        logger.info("-" * 30)
         
         try:
-            # Save to blob storage
+            # Sub-step 5a: Blob Storage
+            logger.info("5a. Uploading to Azure Blob Storage...")
             container_client = azure_conn.get_container_client()
             serialization_method = features.get('serialization_method', 'qpy')
             blob_path = upload_circuit_blob(container_client, circ, qpy_hash, serialization_method)
             features["blob_path"] = blob_path.split("circuits/")[1] if "circuits/" in blob_path else blob_path
-            print(f"✓ Circuit uploaded to blob storage: {blob_path}")
+            logger.info(f"✓ Circuit uploaded to blob storage")
             
-            # Save metadata to Azure Table Storage (NEW: replaces SQL Database)
+            # Sub-step 5b: Table Storage
+            logger.info("5b. Saving metadata to Azure Table Storage...")
             table_client = azure_conn.get_circuits_table_client()
             table_success = save_circuit_metadata_to_table(table_client, features)
             
             if table_success:
-                print("✓ Circuit metadata saved to Azure Table Storage")
+                logger.info("✓ Circuit metadata saved to Azure Table Storage")
             else:
-                print("✗ Failed to save metadata to Azure Table Storage")
+                logger.error("✗ Failed to save metadata to Azure Table Storage")
                 
         except Exception as e:
-            print(f"✗ Error saving to Azure: {e}")
+            logger.error(f"Cloud storage failed: {e}")
+            logger.info("Circuit is still available locally")
+            
     elif written:
-        print(f"✓ Circuit saved locally with hash: {qpy_hash}")
-        print("Azure connection not provided - skipping cloud storage")
+        logger.info("\nSTEP 5: Cloud Storage")
+        logger.info("-" * 30)
+        logger.info("Azure connection not provided - skipping cloud storage")
+    elif azure_conn:
+        logger.info("\nSTEP 5: Cloud Storage")
+        logger.info("-" * 30)
+        logger.info("Circuit already exists - skipping cloud storage")
     
+    logger.info("\n" + "=" * 60)
+    logger.info("PIPELINE COMPLETED SUCCESSFULLY")
+    logger.info("=" * 60)
 
 
 def main():
+    logger.info("🚀 Starting Quantum Circuit Processing Application")
+    logger.info("=" * 80)
+    
     seed = 42
+    logger.info(f"Using random seed: {seed}")
     
     # Initialize Azure connection for cloud storage
+    logger.info("\nInitializing Azure Connection...")
     try:
         azure_conn = AzureConnection()
-        print("✓ Connected to Azure services (Table Storage + Blob Storage)")
+        logger.info("✓ Connected to Azure services (Table Storage + Blob Storage)")
     except Exception as e:
-        print(f"⚠️  Azure connection failed: {e}")
-        print("Continuing with local storage only...")
+        logger.warning(f"Azure connection failed: {e}")
+        logger.info("Continuing with local storage only...")
         azure_conn = None
 
     # Configure circuit generation
+    logger.info("\nConfiguring Circuit Generation...")
     base_params = BaseParams(max_qubits=5, min_qubits=1, max_depth=2000, min_depth=1, seed=seed)
-    circuitMerger = CircuitMerger(base_params=base_params)
+    logger.info(f"Circuit parameters: {base_params.min_qubits}-{base_params.max_qubits} qubits, {base_params.min_depth}-{base_params.max_depth} depth")
+    
+    try:
+        circuitMerger = CircuitMerger(base_params=base_params)
+        logger.info("✓ Circuit merger initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize circuit merger: {e}")
+        raise
 
     # Initialize quantum simulator
-    quantumSimulator = QuantumSimulator(seed=seed)
+    logger.info("\nInitializing Quantum Simulator...")
+    try:
+        quantumSimulator = QuantumSimulator(seed=seed)
+        logger.info("✓ Quantum simulator initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize quantum simulator: {e}")
+        raise
     
     # Run the extraction pipeline
-    run_extraction_pipeline(circuitMerger, quantumSimulator, azure_conn)
+    logger.info("\nStarting Pipeline Execution...")
+    try:
+        run_extraction_pipeline(circuitMerger, quantumSimulator, azure_conn)
+        logger.info("\n🎉 Application completed successfully!")
+    except Exception as e:
+        logger.error(f"\n💥 Application failed: {e}")
+        raise
 if __name__ == "__main__":
     main()

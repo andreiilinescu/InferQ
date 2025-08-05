@@ -2,8 +2,12 @@ from typing import List, Union
 from qiskit import QuantumCircuit
 import random
 import numpy as np
+import logging
 
 from generators.lib.generator import Generator, BaseParams
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Import all state preparation circuits
 from generators.state_prep_circuits.ghz import GHZ
@@ -63,10 +67,12 @@ class CircuitMerger:
     """
 
     def __init__(self, base_params: BaseParams):
+        logger.debug(f"Initializing CircuitMerger with params: {base_params}")
         self.base_params = base_params
         self.generators = self.initialize_generators()
         random.seed(base_params.seed)
         np.random.seed(base_params.seed)
+        logger.info(f"CircuitMerger initialized with {len(self.generators)} generators")
 
     def initialize_generators(self) -> List[Generator]:
         """
@@ -75,7 +81,20 @@ class CircuitMerger:
         Returns:
             List[Generator]: List of initialized generator instances.
         """
-        return [cls(self.base_params) for cls in ALL_GENERATOR_CLASSES]
+        logger.debug(f"Initializing {len(ALL_GENERATOR_CLASSES)} generator classes...")
+        generators = []
+        
+        for cls in ALL_GENERATOR_CLASSES:
+            try:
+                generator = cls(self.base_params)
+                generators.append(generator)
+                logger.debug(f"✓ Initialized {cls.__name__}")
+            except Exception as e:
+                logger.warning(f"✗ Failed to initialize {cls.__name__}: {e}")
+                continue
+        
+        logger.debug(f"Successfully initialized {len(generators)}/{len(ALL_GENERATOR_CLASSES)} generators")
+        return generators
 
     def select_generators_by_probability(
         self,
@@ -174,38 +193,41 @@ class CircuitMerger:
         Returns:
             Hierarchically generated quantum circuit
         """
+        logger.info(f"Starting hierarchical circuit generation...")
+        logger.debug(f"Available generators: {len(self.generators)}")
+        logger.debug(f"Stopping probability: {stopping_probability}, Max generators: {max_generators}")
+        
         if generators_probabilities is None:
             # Equal probability for all generators initially
             generators_probabilities = np.ones(len(self.generators))
-
-        # print(
-        #     f"Starting hierarchical generation with {len(self.generators)} available generators..."
-        # )
-        # print(
-        #     f"Stopping probability: {stopping_probability}, Max generators: {max_generators}"
-        # )
+            logger.debug("Using equal probabilities for all generators")
 
         # Select generators based on probability
+        logger.debug("Selecting generators based on probability distribution...")
         selected_generators = self.select_generators_by_probability(
             generators_probabilities, stopping_probability, max_generators
         )
 
         if not selected_generators:
-            print("No generators selected!")
+            logger.warning("No generators selected! Returning empty circuit")
             return QuantumCircuit()
 
-        print(
-            f"Selected {len(selected_generators)} generators for hierarchical circuit"
-        )
+        logger.info(f"Selected {len(selected_generators)} generators for hierarchical circuit")
+        logger.debug(f"Selected generators: {[gen.__class__.__name__ for gen in selected_generators]}")
 
         # Generate circuits from selected generators only
+        logger.debug("Generating individual circuits from selected generators...")
         successful_circuits = []
-        for generator in selected_generators:
+        
+        for i, generator in enumerate(selected_generators):
+            generator_name = generator.__class__.__name__
+            logger.debug(f"Processing generator {i+1}/{len(selected_generators)}: {generator_name}")
+            
             try:
-                # print(f"Generating parameters for {generator.__class__.__name__}...")
+                logger.debug(f"Generating parameters for {generator_name}...")
                 params = generator.generate_parameters()
 
-                # print(f"Generating circuit for {generator.__class__.__name__}...")
+                logger.debug(f"Generating circuit for {generator_name}...")
                 if isinstance(params, tuple):
                     circuit = generator.generate(*params)
                 elif isinstance(params, dict):
@@ -214,38 +236,35 @@ class CircuitMerger:
                     circuit = generator.generate(params)
 
                 if circuit is not None and hasattr(circuit, "data"):
-                    circuit.name = generator.__class__.__name__
+                    circuit.name = generator_name
                     successful_circuits.append(circuit)
-                #     print(
-                #         f"✓ Generated {circuit.name}: {circuit.num_qubits}q, depth={circuit.depth()}"
-                #     )
-                # else:
-                #     print(
-                #         f"✗ {generator.__class__.__name__} returned None or invalid circuit"
-                #     )
+                    logger.debug(f"✓ Generated {circuit.name}: {circuit.num_qubits}q, depth={circuit.depth()}")
+                else:
+                    logger.warning(f"✗ {generator_name} returned None or invalid circuit")
 
             except Exception as e:
-                print(
-                    f"✗ Error with {generator.__class__.__name__}: {type(e).__name__}: {e}"
-                )
-                # Print more detailed error for debugging
-                import traceback
-
-                print(f"   Details: {traceback.format_exc().splitlines()[-2]}")
+                logger.warning(f"✗ Error with {generator_name}: {type(e).__name__}: {e}")
+                logger.debug(f"   Full error details: {str(e)}")
                 continue
 
         # Merge the successful circuits
         if not successful_circuits:
+            logger.warning("No successful circuits generated! Returning empty circuit")
             return QuantumCircuit()
 
+        logger.info(f"Merging {len(successful_circuits)} successful circuits...")
+        
         max_qubits = max(c.num_qubits for c in successful_circuits)
         max_clbits = max(c.num_clbits for c in successful_circuits)
+        logger.debug(f"Merged circuit dimensions: {max_qubits} qubits, {max_clbits} clbits")
 
         merged_circuit = QuantumCircuit(max_qubits, max_clbits)
         merged_circuit.name = f"HierarchicalCircuit_{len(successful_circuits)}gens"
 
         for i, circuit in enumerate(successful_circuits):
             try:
+                logger.debug(f"Composing circuit {i+1}/{len(successful_circuits)}: {circuit.name}")
+                
                 if i > 0:
                     merged_circuit.barrier()
 
@@ -265,11 +284,14 @@ class CircuitMerger:
                     )
                 else:
                     merged_circuit.compose(circuit, qubits=target_qubits, inplace=True)
+                
+                logger.debug(f"✓ Successfully composed {circuit.name}")
 
             except Exception as e:
-                print(f"✗ Failed to compose {circuit.name}: {e}")
+                logger.warning(f"✗ Failed to compose {circuit.name}: {e}")
                 continue
 
+        logger.info(f"✓ Circuit generation completed: {merged_circuit.num_qubits} qubits, depth {merged_circuit.depth()}, size {merged_circuit.size()}")
         return merged_circuit
 
     def _update_conditional_probabilities(
