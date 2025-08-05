@@ -21,7 +21,7 @@ class DeutschJozsa(Generator):
 
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
-        self.measure = True  # Deutsch-Jozsa always requires measurement
+        self.measure = base_params.measure  # Deutsch-Jozsa always requires measurement
 
     def generate(
         self,

@@ -147,7 +147,7 @@ def main():
 
     # Configure circuit generation
     logger.info("\nConfiguring Circuit Generation...")
-    base_params = BaseParams(max_qubits=5, min_qubits=1, max_depth=2000, min_depth=1, seed=seed)
+    base_params = BaseParams(max_qubits=5, min_qubits=1, max_depth=2000, min_depth=1, seed=seed,measure=False)
     logger.info(f"Circuit parameters: {base_params.min_qubits}-{base_params.max_qubits} qubits, {base_params.min_depth}-{base_params.max_depth} depth")
     
     try:

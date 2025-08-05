@@ -158,8 +158,6 @@ def generate(
     # Step 4 ─ inverse QFT on evaluation register
     qc.append(QFT(m, inverse=True, do_swaps=False, name="QFT†"), qr_eval)
 
-    # Step 5 ─ measure evaluation qubits
-    qc.measure(qr_eval, cr_eval)
 
     # Metadata
     qc.metadata = {

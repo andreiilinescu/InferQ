@@ -16,7 +16,7 @@ class AmplitudeEstimation(Generator):
 
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
-        self.measure = True  # Amplitude estimation always requires measurement
+        self.measure = base_params  # Amplitude estimation always requires measurement
 
     def generate(
         self,

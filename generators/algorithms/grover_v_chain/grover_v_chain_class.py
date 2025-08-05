@@ -21,7 +21,7 @@ class GroverVChain(Generator):
 
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
-        self.measure = True  # Grover always requires measurement
+        self.measure = base_params.measure  # Grover always requires measurement
 
     def generate(
         self,
@@ -48,7 +48,7 @@ class GroverVChain(Generator):
             target=target,
             iterations=iterations,
             name=name or f"GroverVChain({n}q,{iterations}iter)",
-            measure=True,  # Always measure for Grover
+            measure=self.measure,  # Always measure for Grover
         )
 
         return qc

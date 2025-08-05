@@ -90,7 +90,7 @@ class QPE(Generator):
 
     def __init__(self, base_params: BaseParams):
         super().__init__(base_params)
-        self.measure = True  # QPE always requires measurement
+        self.measure = base_params.measure  # QPE always requires measurement
 
     def generate(
         self,
@@ -161,8 +161,9 @@ class QPE(Generator):
         qc.append(qft_inv, qr_eval)
 
         # 5) Measurement
-        qc.barrier()
-        qc.measure(qr_eval, cr_eval)  # type: ignore[arg-type]
+        if self.measure:
+            qc.barrier()
+            qc.measure(qr_eval, cr_eval)  # type: ignore[arg-type]
 
         # Metadata
         qc.metadata = {
@@ -171,7 +172,6 @@ class QPE(Generator):
             "n_system": n_sys,
             "approx_deg": approximation_degree,
             "eigenphase": eigenphase,
-            "measured": True,
         }
 
         return qc
