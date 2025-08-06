@@ -160,7 +160,7 @@ def main():
     # Initialize quantum simulator
     logger.info("\nInitializing Quantum Simulator...")
     try:
-        quantumSimulator = QuantumSimulator(seed=seed)
+        quantumSimulator = QuantumSimulator(seed=seed, shots=None)
         logger.info("✓ Quantum simulator initialized")
     except Exception as e:
         logger.error(f"Failed to initialize quantum simulator: {e}")

@@ -31,7 +31,7 @@ class QuantumSimulator:
     density matrix, stabilizer, and extended stabilizer simulations.
     """
     
-    def __init__(self, shots: int = 1024, seed: Optional[int] = None):
+    def __init__(self, shots: int|None = None, seed: Optional[int] = None):
         """
         Initialize the quantum simulator.
         
