@@ -67,23 +67,21 @@ class SimulationAnalyzer:
                 metric = SimulationMetrics(
                     method=method,
                     success=True,
-                    circuit_depth=result.get('circuit_depth'),
-                    circuit_size=result.get('circuit_size'),
-                    num_qubits=result.get('num_qubits'),
-                    execution_time=result.get('data', {}).get('execution_time'),
-                    memory_usage=result.get('data', {}).get('memory_usage')
+                    # Use the new simplified structure
+                    circuit_depth=result.get('transpiled_circuit_depth'),
+                    circuit_size=result.get('transpiled_circuit_size'),
+                    num_qubits=result.get('transpiled_num_qubits'),
+                    execution_time=result.get('execution_time'),
+                    memory_usage=result.get('memory_usage')
                 )
                 
-                # Calculate additional metrics
+                # Calculate additional metrics only for statevector (simplified)
                 data = result.get('data', {})
                 
                 if 'probabilities' in data:
                     probs = data['probabilities']
                     # Calculate entropy
                     metric.entropy = self._calculate_entropy(probs)
-                
-                if 'purity' in data:
-                    metric.purity = data['purity']
                 
             else:
                 metric = SimulationMetrics(
@@ -199,11 +197,11 @@ class SimulationAnalyzer:
             report.append("No successful simulations to analyze.")
             return "\n".join(report)
         
-        # Circuit properties
+        # Circuit properties (transpiled)
         if successful[0].circuit_depth is not None:
-            report.append(f"Circuit Depth: {successful[0].circuit_depth}")
-            report.append(f"Circuit Size: {successful[0].circuit_size}")
-            report.append(f"Number of Qubits: {successful[0].num_qubits}")
+            report.append(f"Transpiled Circuit Depth: {successful[0].circuit_depth}")
+            report.append(f"Transpiled Circuit Size: {successful[0].circuit_size}")
+            report.append(f"Transpiled Number of Qubits: {successful[0].num_qubits}")
         
         report.append("\nMethod-specific Results:")
         report.append("-" * 40)
@@ -211,12 +209,12 @@ class SimulationAnalyzer:
         for metric in metrics:
             if metric.success:
                 report.append(f"{metric.method}:")
-                if metric.entropy is not None:
-                    report.append(f"  Entropy: {metric.entropy:.4f}")
-                if metric.purity is not None:
-                    report.append(f"  Purity: {metric.purity:.4f}")
                 if metric.execution_time is not None:
                     report.append(f"  Execution Time: {metric.execution_time:.4f}s")
+                if metric.memory_usage is not None:
+                    report.append(f"  Memory Usage: {metric.memory_usage}")
+                if metric.entropy is not None:
+                    report.append(f"  Entropy: {metric.entropy:.4f}")
             else:
                 report.append(f"{metric.method}: FAILED - {metric.error_message}")
         
@@ -313,10 +311,12 @@ class SimulationAnalyzer:
             
             if result['success']:
                 exportable_result.update({
-                    'circuit_depth': result.get('circuit_depth'),
-                    'circuit_size': result.get('circuit_size'),
-                    'num_qubits': result.get('num_qubits'),
-                    'num_clbits': result.get('num_clbits')
+                    'execution_time': result.get('execution_time'),
+                    'memory_usage': result.get('memory_usage'),
+                    'transpiled_circuit_depth': result.get('transpiled_circuit_depth'),
+                    'transpiled_circuit_size': result.get('transpiled_circuit_size'),
+                    'transpiled_num_qubits': result.get('transpiled_num_qubits'),
+                    'transpiled_num_clbits': result.get('transpiled_num_clbits')
                 })
                 
                 # Handle data with numpy arrays
@@ -369,6 +369,112 @@ class SimulationAnalyzer:
             distance += abs(p1 - p2)
         
         return distance / 2.0
+
+def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str, Any]], 
+                                        extracted_features: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process simulation results and integrate them with extracted features for storage.
+    
+    Args:
+        simulation_results: Raw simulation results from QuantumSimulator
+        extracted_features: Circuit features from feature extractors
+        
+    Returns:
+        Combined features dictionary with simulation data as individual columns
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Start with extracted features
+    combined_features = extracted_features.copy()
+    
+    # Extract essential simulation data first
+    simulation_data = extract_essential_simulation_data(simulation_results)
+    
+    # Define all simulation methods to track
+    simulation_methods = [
+        'statevector', 'matrix_product_state', 'unitary', 
+        'density_matrix', 'stabilizer', 'extended_stabilizer'
+    ]
+    
+    for method in simulation_methods:
+        if method in simulation_data and simulation_data[method]['success']:
+            # Add execution time and memory for successful simulations
+            combined_features[f'{method}_execution_time'] = simulation_data[method].get('execution_time')
+            combined_features[f'{method}_memory_usage'] = simulation_data[method].get('memory_usage')
+            
+            # Add transpiled circuit stats
+            combined_features[f'{method}_transpiled_depth'] = simulation_data[method].get('transpiled_circuit_depth')
+            combined_features[f'{method}_transpiled_size'] = simulation_data[method].get('transpiled_circuit_size')
+            
+            # Special handling for statevector entropy
+            if method == 'statevector':
+                statevector_data = simulation_data[method].get('simulation_data', {})
+                if 'entropy' in statevector_data and statevector_data['entropy'] is not None:
+                    combined_features['statevector_entropy'] = statevector_data['entropy']
+                    logger.info(f"✓ Statevector entropy calculated: {statevector_data['entropy']:.4f}")
+        else:
+            # For failed simulations, set to None
+            combined_features[f'{method}_execution_time'] = None
+            combined_features[f'{method}_memory_usage'] = None
+            combined_features[f'{method}_transpiled_depth'] = None
+            combined_features[f'{method}_transpiled_size'] = None
+            
+            if method == 'statevector':
+                combined_features['statevector_entropy'] = None
+    
+    logger.info(f"✓ Simulation data processed and added to features")
+    logger.info(f"✓ Added individual columns for {len(simulation_methods)} simulation methods")
+    
+    return combined_features
+
+def extract_essential_simulation_data(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    Extract only essential data from simulation results for storage/analysis.
+    
+    Args:
+        results: Full simulation results from QuantumSimulator
+        
+    Returns:
+        Dictionary with only essential data (execution time, memory, transpiled stats, statevector data)
+    """
+    essential_data = {}
+    
+    for method, result in results.items():
+        if result['success']:
+            essential_result = {
+                'success': True,
+                'method': method,
+                'execution_time': result.get('execution_time'),
+                'memory_usage': result.get('memory_usage'),
+                'transpiled_circuit_depth': result.get('transpiled_circuit_depth'),
+                'transpiled_circuit_size': result.get('transpiled_circuit_size'),
+                'transpiled_num_qubits': result.get('transpiled_num_qubits'),
+                'transpiled_num_clbits': result.get('transpiled_num_clbits')
+            }
+            
+            # Only include simulation data for statevector
+            data = result.get('data', {})
+            if method == 'statevector' and ('statevector' in data or 'probabilities' in data):
+                essential_result['simulation_data'] = {
+                    'statevector': data.get('statevector'),
+                    'probabilities': data.get('probabilities'),
+                    'entropy': data.get('entropy')  # Include entropy from simulation
+                }
+            elif 'counts' in data:
+                essential_result['simulation_data'] = {
+                    'counts': data.get('counts')
+                }
+            
+            essential_data[method] = essential_result
+        else:
+            essential_data[method] = {
+                'success': False,
+                'method': method,
+                'error': result.get('error', 'Unknown error')
+            }
+    
+    return essential_data
 
 def benchmark_simulation_methods(circuit, shots: int = 1024, 
                                seed: int = 42) -> Dict[str, Any]:

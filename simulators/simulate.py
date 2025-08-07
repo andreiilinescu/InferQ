@@ -196,16 +196,30 @@ class QuantumSimulator:
             simulator = self.simulators[method]
             logger.debug(f"Using simulator: {simulator.name} for {method.value}")
             
+            # Handle parameterized circuits by assigning parameters with random values
+            circuit_to_simulate = qc.copy()
+            if circuit_to_simulate.parameters:
+                logger.debug(f"Circuit has {len(circuit_to_simulate.parameters)} parameters, assigning random values...")
+                import numpy as np
+                # Assign parameters with random values between 0 and 2π
+                parameter_values = {param: np.random.uniform(0, 2*np.pi) for param in circuit_to_simulate.parameters}
+                circuit_to_simulate = circuit_to_simulate.assign_parameters(parameter_values)
+                logger.debug(f"✓ Parameters assigned: {list(parameter_values.keys())}")
+            
             # Transpile circuit for the specific simulator
             logger.debug(f"Transpiling circuit for {method.value}...")
-            transpiled_qc = transpile(qc, simulator)
+            transpiled_qc = transpile(circuit_to_simulate, simulator)
             logger.debug(f"✓ Circuit transpiled: depth {transpiled_qc.depth()}, size {transpiled_qc.size()}")
             
-            # Run the simulation
+            # Run the simulation with timing
             logger.debug(f"Executing {method.value} simulation...")
+            import time
+            start_time = time.time()
             job = simulator.run(transpiled_qc, **kwargs)
             result = job.result()
-            logger.debug(f"✓ {method.value} simulation job completed")
+            end_time = time.time()
+            measured_execution_time = end_time - start_time
+            logger.debug(f"✓ {method.value} simulation job completed in {measured_execution_time:.4f}s")
             
             # Extract relevant information based on method
             logger.debug(f"Extracting simulation data for {method.value}...")
@@ -220,15 +234,22 @@ class QuantumSimulator:
                 logger.debug(f"✓ Data extraction completed for {method.value}")
                 success = True
             
+            # Get execution time and memory usage from result if available, fallback to measured time
+            execution_time = getattr(result, 'time_taken', simulation_data.get('execution_time', measured_execution_time))
+            memory_usage = getattr(result, 'memory_usage', simulation_data.get('memory_usage'))
+            
             return {
                 'success': success,
                 'method': method.value,
-                'result': result,
                 'data': simulation_data,
-                'circuit_depth': transpiled_qc.depth(),
-                'circuit_size': transpiled_qc.size(),
-                'num_qubits': transpiled_qc.num_qubits,
-                'num_clbits': transpiled_qc.num_clbits,
+                # Execution stats
+                'execution_time': execution_time,
+                'memory_usage': memory_usage,
+                # Transpiled circuit stats
+                'transpiled_circuit_depth': transpiled_qc.depth(),
+                'transpiled_circuit_size': transpiled_qc.size(),
+                'transpiled_num_qubits': transpiled_qc.num_qubits,
+                'transpiled_num_clbits': transpiled_qc.num_clbits,
                 'extraction_error': simulation_data.get('extraction_error') if has_extraction_error else None
             }
             
@@ -242,7 +263,8 @@ class QuantumSimulator:
     
     def _extract_simulation_data(self, result: Result, method: SimulationMethod, qc: QuantumCircuit) -> Dict[str, Any]:
         """
-        Extract relevant data from simulation results based on the method used.
+        Extract minimal simulation data - only counts/simulation data for statevector.
+        Returns execution time, memory, and basic stats for all methods.
         
         Args:
             result: Qiskit Result object
@@ -250,46 +272,33 @@ class QuantumSimulator:
             qc: Quantum circuit that was simulated
             
         Returns:
-            Dictionary containing extracted data
+            Dictionary containing minimal extracted data
         """
         data = {}
         
         try:
+            # Only extract detailed simulation data for statevector
             if method == SimulationMethod.STATEVECTOR:
                 if 'statevector' in result.data(0):
                     statevector = result.data(0)['statevector']
+                    probabilities = np.abs(statevector) ** 2
+                    
+                    # Calculate entropy
+                    entropy = self._calculate_entropy(probabilities)
+                    
                     data['statevector'] = statevector
-                    data['probabilities'] = np.abs(statevector) ** 2
-                    data['amplitudes'] = statevector
+                    data['probabilities'] = probabilities
+                    data['entropy'] = entropy
             
-            elif method == SimulationMethod.UNITARY:
-                if 'unitary' in result.data(0):
-                    unitary = result.data(0)['unitary']
-                    data['unitary_matrix'] = unitary
-                    data['matrix_shape'] = unitary.shape
-            
-            elif method == SimulationMethod.DENSITY_MATRIX:
-                if 'density_matrix' in result.data(0):
-                    density_matrix = result.data(0)['density_matrix']
-                    data['density_matrix'] = density_matrix
-                    data['trace'] = np.trace(density_matrix)
-                    data['purity'] = np.trace(density_matrix @ density_matrix).real
-            
-            elif method in [SimulationMethod.STABILIZER, SimulationMethod.EXTENDED_STABILIZER]:
-                if hasattr(result, 'get_counts') and qc.num_clbits > 0:
+            # For all other methods, just check if they have counts (if applicable)
+            elif hasattr(result, 'get_counts') and qc.num_clbits > 0:
+                try:
                     data['counts'] = result.get_counts(0)
-                if 'stabilizer' in result.data(0):
-                    data['stabilizer_state'] = result.data(0)['stabilizer']
+                except:
+                    # If counts extraction fails, don't store anything
+                    pass
             
-            elif method == SimulationMethod.MPS:
-                if hasattr(result, 'get_counts') and qc.num_clbits > 0:
-                    data['counts'] = result.get_counts(0)
-                if 'statevector' in result.data(0):
-                    statevector = result.data(0)['statevector']
-                    data['statevector'] = statevector
-                    data['probabilities'] = np.abs(statevector) ** 2
-            
-            # Common data for all methods
+            # Basic execution stats for all methods
             data['execution_time'] = getattr(result, 'time_taken', None)
             data['memory_usage'] = getattr(result, 'memory_usage', None)
             
@@ -298,6 +307,20 @@ class QuantumSimulator:
             data['extraction_error'] = str(e)
         
         return data
+    
+    def _calculate_entropy(self, probabilities: np.ndarray) -> float:
+        """
+        Calculate von Neumann entropy using the existing simulation_utils function.
+        
+        Args:
+            probabilities: Array of probabilities
+            
+        Returns:
+            Entropy value
+        """
+        from .simulation_utils import SimulationAnalyzer
+        analyzer = SimulationAnalyzer()
+        return analyzer._calculate_entropy(probabilities)
     
     def get_available_methods(self) -> list:
         """

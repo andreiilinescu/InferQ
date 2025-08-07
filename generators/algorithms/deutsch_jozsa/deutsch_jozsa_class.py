@@ -51,7 +51,7 @@ class DeutschJozsa(Generator):
             bitstring=bitstring,
             constant_output=constant_output,
             name=name or f"DeutschJozsa({n}q,{oracle_type})",
-            measure=True,  # Always measure for Deutsch-Jozsa
+            measure=self.measure,  # Always measure for Deutsch-Jozsa
         )
 
         return qc

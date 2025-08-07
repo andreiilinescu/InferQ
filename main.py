@@ -72,11 +72,22 @@ def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: Quan
         logger.error(f"Simulation failed: {e}")
         raise
     
+    # Step 3.5: Process Simulation Data
+    logger.info("\nSTEP 3.5: Processing Simulation Data")
+    logger.info("-" * 30)
+    try:
+        from simulators.simulation_utils import process_simulation_data_for_features
+        combined_features = process_simulation_data_for_features(res, extracted_features)
+    except Exception as e:
+        logger.error(f"Simulation data processing failed: {e}")
+        # Continue with just extracted features if simulation data processing fails
+        combined_features = extracted_features
+    
     # Step 4: Local Storage
     logger.info("\nSTEP 4: Local Storage")
     logger.info("-" * 30)
     try:
-        qpy_hash, features, written = save_circuit_locally(circ, extracted_features, Path("./circuits/"))
+        qpy_hash, features, written = save_circuit_locally(circ, combined_features, Path("./circuits/"))
         if written:
             logger.info(f"✓ Circuit saved locally with hash: {qpy_hash}")
             logger.info(f"✓ Serialization method: {features.get('serialization_method', 'unknown')}")
@@ -132,7 +143,7 @@ def main():
     logger.info("🚀 Starting Quantum Circuit Processing Application")
     logger.info("=" * 80)
     
-    seed = 42
+    seed = 21384
     logger.info(f"Using random seed: {seed}")
     
     # Initialize Azure connection for cloud storage
