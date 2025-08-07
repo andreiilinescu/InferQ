@@ -61,10 +61,11 @@ verbose_loggers = [
     'qiskit', 'qiskit.passmanager', 'qiskit.compiler', 'qiskit.transpiler', 'qiskit_aer',
     'azure.core', 'azure.storage', 'azure.data.tables', 'azure.storage.blob',
     'azure.core.pipeline.policies.http_logging_policy',
-    'simulators.simulate', 'simulators.simulation_utils',
+    # 'simulators.simulate', 'simulators.simulation_utils',  # Temporarily enable for debugging
     'feature_extractors.extractors', 'feature_extractors.static_features',
     'feature_extractors.graph_features', 'feature_extractors.dynamic_features', 'feature_extractors.graphs',
-    'generators.circuit_merger', 'utils.local_storage', 'utils.table_storage',
+    # 'generators.circuit_merger', 
+    'utils.local_storage', 'utils.table_storage',
     'utils.blob_storage', 'utils.azure_connection', 'utils.save_utils',
     'rustworkx', 'rx',  # Suppress rustworkx matrix outputs
     '__main__'  # Suppress main module info logging

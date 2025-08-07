@@ -268,24 +268,27 @@ class CircuitMerger:
                 if i > 0:
                     merged_circuit.barrier()
 
-                target_qubits = list(range(min(circuit.num_qubits, max_qubits)))
+                # Make parameter names unique to avoid conflicts
+                circuit_to_compose = self._make_parameters_unique(circuit, i)
+
+                target_qubits = list(range(min(circuit_to_compose.num_qubits, max_qubits)))
                 target_clbits = (
-                    list(range(min(circuit.num_clbits, max_clbits)))
-                    if circuit.num_clbits > 0
+                    list(range(min(circuit_to_compose.num_clbits, max_clbits)))
+                    if circuit_to_compose.num_clbits > 0
                     else None
                 )
 
                 if target_clbits is not None:
                     merged_circuit.compose(
-                        circuit,
+                        circuit_to_compose,
                         qubits=target_qubits,
                         clbits=target_clbits,
                         inplace=True,
                     )
                 else:
-                    merged_circuit.compose(circuit, qubits=target_qubits, inplace=True)
+                    merged_circuit.compose(circuit_to_compose, qubits=target_qubits, inplace=True)
                 
-                logger.debug(f"✓ Successfully composed {circuit.name}")
+                logger.debug(f"✓ Successfully composed {circuit_to_compose.name}")
 
             except Exception as e:
                 logger.warning(f"✗ Failed to compose {circuit.name}: {e}")
@@ -293,6 +296,39 @@ class CircuitMerger:
 
         logger.info(f"✓ Circuit generation completed: {merged_circuit.num_qubits} qubits, depth {merged_circuit.depth()}, size {merged_circuit.size()}")
         return merged_circuit
+
+    def _make_parameters_unique(self, circuit: QuantumCircuit, circuit_index: int) -> QuantumCircuit:
+        """
+        Make parameter names unique by adding a circuit index suffix.
+        
+        Args:
+            circuit: The circuit with potentially conflicting parameters
+            circuit_index: Index to make parameters unique
+            
+        Returns:
+            Circuit with unique parameter names
+        """
+        if not circuit.parameters:
+            return circuit
+            
+        # Create a copy of the circuit
+        new_circuit = circuit.copy()
+        
+        # Create parameter mapping with unique names
+        parameter_map = {}
+        for param in circuit.parameters:
+            # Create unique parameter name by adding circuit index
+            unique_name = f"{param.name}_c{circuit_index}"
+            from qiskit.circuit import Parameter
+            new_param = Parameter(unique_name)
+            parameter_map[param] = new_param
+        
+        # Apply parameter mapping
+        if parameter_map:
+            new_circuit = new_circuit.assign_parameters(parameter_map)
+            logger.debug(f"Renamed {len(parameter_map)} parameters for circuit {circuit_index}")
+        
+        return new_circuit
 
     def _update_conditional_probabilities(
         self,
