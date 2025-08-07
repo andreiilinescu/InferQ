@@ -133,7 +133,6 @@ class QAOA(Generator):
                 raise ValueError(
                     "adjacency matrix must be symmetric (undirected graph)"
                 )
-            print(adj)
             edges = [
                 (u, v, adj[u, v])
                 for u in range(num_qubits)

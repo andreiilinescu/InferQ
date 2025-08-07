@@ -22,6 +22,10 @@ import signal
 import json
 from datetime import datetime
 import psutil
+import numpy as np
+
+# Suppress numpy array printing to stdout
+np.set_printoptions(suppress=True, threshold=0)
 
 # Import pipeline components
 from generators.circuit_merger import CircuitMerger
@@ -33,13 +37,23 @@ from simulators.simulate import QuantumSimulator
 from simulators.simulation_utils import process_simulation_data_for_features
 
 # Configure minimal logging - only warnings and essential messages
+# Create file handler with buffering
+file_handler = logging.FileHandler('pipeline.log')
+file_handler.setLevel(logging.WARNING)
+
+# Create console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.WARNING)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Configure root logger
 logging.basicConfig(
     level=logging.WARNING,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('pipeline.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[file_handler, console_handler]
 )
 
 # Suppress ALL verbose logging - comprehensive list
@@ -49,9 +63,10 @@ verbose_loggers = [
     'azure.core.pipeline.policies.http_logging_policy',
     'simulators.simulate', 'simulators.simulation_utils',
     'feature_extractors.extractors', 'feature_extractors.static_features',
-    'feature_extractors.graph_features', 'feature_extractors.dynamic_features',
+    'feature_extractors.graph_features', 'feature_extractors.dynamic_features', 'feature_extractors.graphs',
     'generators.circuit_merger', 'utils.local_storage', 'utils.table_storage',
     'utils.blob_storage', 'utils.azure_connection', 'utils.save_utils',
+    'rustworkx', 'rx',  # Suppress rustworkx matrix outputs
     '__main__'  # Suppress main module info logging
 ]
 
