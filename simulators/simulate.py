@@ -297,10 +297,10 @@ class QuantumSimulator:
                 except:
                     # If counts extraction fails, don't store anything
                     pass
-            
+            metadata=getattr(result, 'metadata', None)
             # Basic execution stats for all methods
             data['execution_time'] = getattr(result, 'time_taken', None)
-            data['memory_usage'] = getattr(result, 'memory_usage', None)
+            data['memory_usage'] =  metadata.get("max_memory_mb",None) if metadata else  None
             
         except Exception as e:
             logger.warning(f"Error extracting data for {method.value}: {e}")
