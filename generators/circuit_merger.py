@@ -94,7 +94,7 @@ class CircuitMerger:
                 continue
         
         logger.debug(f"Successfully initialized {len(generators)}/{len(ALL_GENERATOR_CLASSES)} generators")
-        return generator
+        return generators
 
     def select_generators_by_probability(
         self,

@@ -2,6 +2,10 @@ from qiskit import QuantumCircuit
 from feature_extractors.static_features import FeatureExtracter
 
 from typing import Any
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class DynamicFeatureExtractor():
     def __init__(self, circuit: QuantumCircuit = None, feature_extractor: FeatureExtracter = None):
@@ -78,7 +82,7 @@ class DynamicFeatureExtractor():
         
         is_main = sys.argv[0].endswith("extract.py")
         if is_main:
-            print("Starting Dynamic feature extraction...\n")
+            logger.info("Starting Dynamic feature extraction...")
         features = {}
         feature_methods = [
             ("sparsity", self.getSparsity),
@@ -92,13 +96,13 @@ class DynamicFeatureExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"\t{key} feature completed.")
+                    logger.debug(f"{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"\t\t{key} feature failed: {e}")
+                    logger.warning(f"{key} feature failed: {e}")
         if is_main:
-            print("Done extracting Dynamic features.\n\n")
+            logger.info("Done extracting Dynamic features.")
         return features
     
 

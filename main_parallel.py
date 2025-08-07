@@ -399,11 +399,14 @@ def run_parallel_pipeline(num_workers: int = None, max_iterations: int = None,
         logger.warning(f"Total processed: {stats['total_processed']}")
         logger.warning(f"Successful: {stats['successful']}")
         logger.warning(f"Failed: {stats['failed']}")
-        logger.warning(f"Success rate: {stats['successful']/stats['total_processed']*100:.1f}%")
+        if stats['total_processed'] > 0:
+            logger.warning(f"Success rate: {stats['successful']/stats['total_processed']*100:.1f}%")
         if azure_conn:
             logger.warning(f"Uploaded to Azure: {stats['uploaded_to_azure']}")
             logger.warning(f"Upload failures: {stats['upload_failures']}")
-            logger.warning(f"Upload success rate: {stats['uploaded_to_azure']/(stats['uploaded_to_azure']+stats['upload_failures'])*100:.1f}%")
+            total_uploads = stats['uploaded_to_azure'] + stats['upload_failures']
+            if total_uploads > 0:
+                logger.warning(f"Upload success rate: {stats['uploaded_to_azure']/total_uploads*100:.1f}%")
         logger.warning(f"Average rate: {rate:.1f} circuits/minute")
         logger.warning(f"Total runtime: {elapsed/3600:.1f} hours")
         logger.warning("=" * 80)

@@ -13,6 +13,10 @@ from feature_extractors.static_features import FeatureExtracter
 from qiskit.circuit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode, DAGInNode, DAGOutNode
 import sys
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 def convertToPyGraphIG(circ: QuantumCircuit) -> dict:
@@ -68,8 +72,8 @@ def convertToPyGraphGDG(circ: QuantumCircuit) -> dict:
     # qiskit_circuit = circ
     # dag = circuit_to_dagdependency(qiskit_circuit)
     # dependency_graph = rx.PyDiGraph()
-    # print([e for e in dag.get_all_edges()])
-    # print([n for n in dag.get_all_nodes()])
+    # logger.debug([e for e in dag.get_all_edges()])
+    # logger.debug([n for n in dag.get_all_nodes()])
     # return dependency_graph
 
     dag = circuit_to_dag(circ)
@@ -368,7 +372,7 @@ class IGGraphExtractor():
         
         is_main = sys.argv[0].endswith("extract.py")
         if is_main:
-            print("Starting IGGraph feature extraction...\n")
+            logger.info("Starting IGGraph feature extraction...")
         features = {}
         feature_methods = [
             ("igdepth", self.getIGDepth),
@@ -393,13 +397,13 @@ class IGGraphExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"\t{key} feature completed.")
+                    logger.debug(f"{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"\t\t{key} feature failed: {e}")
+                    logger.warning(f"{key} feature failed: {e}")
         if is_main:
-            print("Done extracting IGGraph features. \n\n")
+            logger.info("Done extracting IGGraph features.")
         return features
 
 
@@ -458,7 +462,7 @@ class GDGGraphExtractor():
         
         is_main = sys.argv[0].endswith("extract.py")
         if is_main:
-            print("Starting GDGGraph feature extraction...\n")
+            logger.info("Starting GDGGraph feature extraction...")
         features = {}
         feature_methods = [
             ("critical_path_length", self.getCriticalPathLength),
@@ -470,11 +474,11 @@ class GDGGraphExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"\t{key} feature completed.")
+                    logger.debug(f"{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"\t\t{key} feature failed: {e}")
+                    logger.warning(f"{key} feature failed: {e}")
         if is_main:
-            print("Done extracting GDGGraph features. \n\n")
+            logger.info("Done extracting GDGGraph features.")
         return features

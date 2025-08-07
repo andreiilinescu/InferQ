@@ -201,10 +201,26 @@ class QuantumSimulator:
             if circuit_to_simulate.parameters:
                 logger.debug(f"Circuit has {len(circuit_to_simulate.parameters)} parameters, assigning random values...")
                 import numpy as np
-                # Assign parameters with random values between 0 and 2π
-                parameter_values = {param: np.random.uniform(0, 2*np.pi) for param in circuit_to_simulate.parameters}
-                circuit_to_simulate = circuit_to_simulate.assign_parameters(parameter_values)
-                logger.debug(f"✓ Parameters assigned: {list(parameter_values.keys())}")
+                try:
+                    # Assign parameters with random values between 0 and 2π
+                    parameter_values = {param: np.random.uniform(0, 2*np.pi) for param in circuit_to_simulate.parameters}
+                    circuit_to_simulate = circuit_to_simulate.assign_parameters(parameter_values)
+                    logger.debug(f"✓ Parameters assigned: {list(parameter_values.keys())}")
+                except Exception as param_error:
+                    logger.error(f"Parameter assignment failed: {param_error}")
+                    # Try to create a new circuit without parameters as fallback
+                    try:
+                        from qiskit import QuantumCircuit
+                        fallback_circuit = QuantumCircuit(qc.num_qubits)
+                        # Copy non-parameterized gates only
+                        for instruction in qc.data:
+                            if not instruction.operation.params or all(not hasattr(p, 'name') for p in instruction.operation.params):
+                                fallback_circuit.append(instruction.operation, instruction.qubits, instruction.clbits)
+                        circuit_to_simulate = fallback_circuit
+                        logger.debug(f"✓ Using fallback circuit without parameters")
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback circuit creation failed: {fallback_error}")
+                        raise param_error
             
             # Transpile circuit for the specific simulator
             logger.debug(f"Transpiling circuit for {method.value}...")

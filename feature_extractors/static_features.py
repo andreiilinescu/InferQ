@@ -1,5 +1,9 @@
 from qiskit import QuantumCircuit
 from feature_extractors.graphs import *
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 
@@ -203,7 +207,7 @@ class StaticFeatureExtractor():
         
         is_main = sys.argv[0].endswith("extract.py")
         if is_main:
-            print("Starting Static feature extraction...\n")
+            logger.info("Starting Static feature extraction...")
         features = {}
         feature_methods = [
             ("num_qubits", self.getNumberOfQubits),
@@ -225,11 +229,11 @@ class StaticFeatureExtractor():
                 value = list(result.values())[0] if isinstance(result, dict) and result else None
                 features[key] = value
                 if is_main:
-                    print(f"\t{key} feature completed.")
+                    logger.debug(f"{key} feature completed.")
             except Exception as e:
                 features[key] = None
                 if is_main:
-                    print(f"\t\t{key} feature failed: {e}")
+                    logger.warning(f"{key} feature failed: {e}")
         if is_main:
-            print("Done extracting Static features.\n\n")
+            logger.info("Done extracting Static features.")
         return features
