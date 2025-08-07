@@ -86,7 +86,9 @@ def entanglement_pattern(num_qubits: int, seed: int = None) -> str:
             p=random.uniform(0.1, 0.9),  # Random probability for edge creation
             return_edges=True,
         )
-        print("Generated adjacency graph:", g)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug("Generated adjacency graph:", g)
         return g
 
 

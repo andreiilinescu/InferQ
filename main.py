@@ -30,14 +30,13 @@ logging.getLogger('azure.storage.blob').setLevel(logging.WARNING)
 logging.getLogger('azure.data.tables').setLevel(logging.WARNING)
 logging.getLogger('azure.core').setLevel(logging.WARNING)
 
-# Configure main logger
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure main logger - reduced verbosity for HPC
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: QuantumSimulator, azure_conn: AzureConnection = None):
-    logger.info("=" * 60)
-    logger.info("STARTING QUANTUM CIRCUIT EXTRACTION PIPELINE")
-    logger.info("=" * 60)
+    # Minimal logging for HPC - only essential messages
+    pass
     
     # Step 1: Circuit Generation
     logger.info("STEP 1: Circuit Generation")

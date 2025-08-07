@@ -1,0 +1,37 @@
+# High-Performance Computing Requirements
+# Optimized for Intel Xeon E5-6248R 24C 3.0GHz, 185GB RAM
+
+# Core quantum computing
+qiskit>=0.45.0
+qiskit-aer>=0.13.0
+
+# Numerical computing (optimized versions)
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Parallel processing and system monitoring
+psutil>=5.9.0
+multiprocessing-logging>=0.3.4
+
+# Azure cloud storage (optional)
+azure-storage-blob>=12.19.0
+azure-data-tables>=12.4.0
+azure-identity>=1.15.0
+
+# Data handling
+pandas>=2.0.0
+networkx>=3.0
+
+# Performance optimization
+numba>=0.58.0  # JIT compilation for numerical code
+cython>=3.0.0  # C extensions for speed
+
+# Monitoring and profiling (optional)
+memory-profiler>=0.61.0
+line-profiler>=4.1.0
+py-spy>=0.3.14
+
+# Utilities
+tqdm>=4.66.0  # Progress bars
+click>=8.1.0  # Command line interface
+pyyaml>=6.0   # Configuration files

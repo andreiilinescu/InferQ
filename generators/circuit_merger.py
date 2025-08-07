@@ -94,7 +94,7 @@ class CircuitMerger:
                 continue
         
         logger.debug(f"Successfully initialized {len(generators)}/{len(ALL_GENERATOR_CLASSES)} generators")
-        return generators
+        return generator
 
     def select_generators_by_probability(
         self,
@@ -138,7 +138,7 @@ class CircuitMerger:
 
             # Check if we should stop (except for first generator)
             if step > 0 and random.random() < stopping_probability:
-                print(
+                logger.debug(
                     f"Stopping generation at step {step} (stopping_prob={stopping_probability:.3f})"
                 )
                 break
@@ -151,7 +151,7 @@ class CircuitMerger:
                 )[0]
                 selected.append(selected_generator)
 
-                print(
+                logger.debug(
                     f"Step {step + 1}: Selected {selected_generator.__class__.__name__}"
                 )
 
@@ -167,10 +167,10 @@ class CircuitMerger:
                 # Adapt stopping probability to avoid infinite repetition
                 # Increase stopping probability with each step to encourage termination
                 stopping_probability = min(0.9, stopping_probability)
-                print(f"Updated stopping probability: {stopping_probability:.3f}")
+                logger.debug(f"Updated stopping probability: {stopping_probability:.3f}")
             else:
                 # No generators available (shouldn't happen)
-                print("No generators available")
+                logger.warning("No generators available")
                 break
 
         return selected
@@ -351,7 +351,7 @@ class CircuitMerger:
             "QuantumWalk",
         }
 
-        print(f"Updating probabilities based on selected: {selected_name}")
+        logger.debug(f"Updating probabilities based on selected: {selected_name}")
 
         # Store original probabilities for logging
         original_probs = current_probs.copy()
@@ -406,7 +406,7 @@ class CircuitMerger:
             original_prob = original_probs[i]
             new_prob = current_probs[i]
             change_factor = new_prob / original_prob if original_prob > 0 else 0
-            print(
+            logger.debug(
                 f"  {gen_name}: {original_prob:.3f} -> {new_prob:.3f} (×{change_factor:.2f})"
             )
 
@@ -470,7 +470,7 @@ class CircuitMerger:
             current_probs: Current probability distribution (NumPy array)
             step: Current step in the generation process
         """
-        print(f"\n--- Probability Distribution at Step {step} ---")
+        logger.debug(f"\n--- Probability Distribution at Step {step} ---")
         # Use NumPy boolean indexing for efficient filtering
         significant_mask = current_probs > 0.01
         significant_indices = np.where(significant_mask)[0]
@@ -478,5 +478,5 @@ class CircuitMerger:
         for i in significant_indices:
             gen_name = self.generators[i].__class__.__name__
             prob = current_probs[i]
-            print(f"{gen_name}: {prob:.3f}")
-        print("---")
+            logger.debug(f"{gen_name}: {prob:.3f}")
+        logger.debug("---")

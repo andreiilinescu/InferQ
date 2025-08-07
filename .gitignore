@@ -14,3 +14,7 @@ acct.key
 
 .kiro
 playground.ipynb
+
+circuits_hpc/
+
+logs/
