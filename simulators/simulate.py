@@ -238,6 +238,14 @@ class QuantumSimulator:
             execution_time = getattr(result, 'time_taken', simulation_data.get('execution_time', measured_execution_time))
             memory_usage = getattr(result, 'memory_usage', simulation_data.get('memory_usage'))
             
+            # Count transpiled gates by type
+            gate_counts = {}
+            for instruction in transpiled_qc.data:
+                gate_name = instruction.operation.name
+                gate_counts[gate_name] = gate_counts.get(gate_name, 0) + 1
+            
+            logger.debug(f"Transpiled gate counts for {method.value}: {gate_counts}")
+            
             return {
                 'success': success,
                 'method': method.value,
@@ -250,6 +258,7 @@ class QuantumSimulator:
                 'transpiled_circuit_size': transpiled_qc.size(),
                 'transpiled_num_qubits': transpiled_qc.num_qubits,
                 'transpiled_num_clbits': transpiled_qc.num_clbits,
+                'transpiled_gate_counts': gate_counts,
                 'extraction_error': simulation_data.get('extraction_error') if has_extraction_error else None
             }
             

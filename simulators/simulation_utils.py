@@ -407,6 +407,10 @@ def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str,
             combined_features[f'{method}_transpiled_depth'] = simulation_data[method].get('transpiled_circuit_depth')
             combined_features[f'{method}_transpiled_size'] = simulation_data[method].get('transpiled_circuit_size')
             
+            # Add transpiled gate counts
+            gate_counts = simulation_data[method].get('transpiled_gate_counts', {})
+            combined_features[f'{method}_gate_counts'] = gate_counts
+            
             # Special handling for statevector entropy
             if method == 'statevector':
                 statevector_data = simulation_data[method].get('simulation_data', {})
@@ -419,6 +423,7 @@ def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str,
             combined_features[f'{method}_memory_usage'] = None
             combined_features[f'{method}_transpiled_depth'] = None
             combined_features[f'{method}_transpiled_size'] = None
+            combined_features[f'{method}_gate_counts'] = None
             
             if method == 'statevector':
                 combined_features['statevector_entropy'] = None
@@ -450,7 +455,8 @@ def extract_essential_simulation_data(results: Dict[str, Dict[str, Any]]) -> Dic
                 'transpiled_circuit_depth': result.get('transpiled_circuit_depth'),
                 'transpiled_circuit_size': result.get('transpiled_circuit_size'),
                 'transpiled_num_qubits': result.get('transpiled_num_qubits'),
-                'transpiled_num_clbits': result.get('transpiled_num_clbits')
+                'transpiled_num_clbits': result.get('transpiled_num_clbits'),
+                'transpiled_gate_counts': result.get('transpiled_gate_counts', {})
             }
             
             # Only include simulation data for statevector
