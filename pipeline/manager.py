@@ -23,6 +23,7 @@ from utils.duplicate_detector import (
     coordinate_batch_session_hashes, get_current_session_hashes
 )
 from pipeline.worker import run_single_pipeline
+from config import get_pipeline_config
 from pipeline.azure_manager import (
     upload_batch_to_azure, should_trigger_upload, 
     log_upload_trigger, log_final_upload
@@ -359,19 +360,27 @@ class PipelineManager:
 
 
 def run_parallel_pipeline(num_workers: Optional[int] = None, max_iterations: Optional[int] = None, 
-                         batch_size: int = 50, azure_upload_interval: int = 100) -> Dict[str, Any]:
+                         batch_size: Optional[int] = None, azure_upload_interval: Optional[int] = None) -> Dict[str, Any]:
     """
     Run the parallel pipeline with the specified parameters.
     
     Args:
-        num_workers: Number of parallel workers (default: CPU count - 2)
-        max_iterations: Maximum iterations (None for infinite)
-        batch_size: Circuits per batch before status update
-        azure_upload_interval: Upload to Azure every N circuits
+        num_workers: Number of parallel workers (default: from config)
+        max_iterations: Maximum iterations (default: from config)
+        batch_size: Circuits per batch before status update (default: from config)
+        azure_upload_interval: Upload to Azure every N circuits (default: from config)
         
     Returns:
         Dictionary with final pipeline statistics
     """
+    # Get configuration from centralized config, with parameter overrides
+    pipeline_config = get_pipeline_config()
+    
+    # Use provided parameters or fall back to config defaults
+    num_workers = num_workers or pipeline_config['workers']
+    max_iterations = max_iterations or pipeline_config['max_iterations']
+    batch_size = batch_size or pipeline_config['batch_size']
+    azure_upload_interval = azure_upload_interval or pipeline_config['azure_upload_interval']
     # Create and initialize pipeline manager
     manager = PipelineManager(num_workers=num_workers, azure_upload_interval=azure_upload_interval)
     

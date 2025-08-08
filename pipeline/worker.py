@@ -44,11 +44,12 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
         worker_logger = _setup_worker_logging(worker_id)
         worker_logger.info(f"Starting pipeline iteration (seed_offset={seed_offset})")
         
-        # Use worker-specific seed for reproducibility
-        seed = 42 + seed_offset + worker_id * 1000
-        
         # Get circuit configuration from centralized config
         circuit_config = get_circuit_config()
+        
+        # Use worker-specific seed based on config seed for reproducibility
+        base_seed = circuit_config['seed']
+        seed = base_seed + seed_offset + worker_id * 1000
         
         # Initialize components using centralized configuration
         base_params = BaseParams(

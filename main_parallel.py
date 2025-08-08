@@ -93,10 +93,10 @@ def main():
                        help='Number of parallel workers (default: CPU count - 2)')
     parser.add_argument('--iterations', type=int, default=None,
                        help='Maximum iterations (default: infinite)')
-    parser.add_argument('--batch-size', type=int, default=100,
-                       help='Circuits per batch (default: 100)')
-    parser.add_argument('--azure-interval', type=int, default=1000,
-                       help='Azure upload interval (default: 1000)')
+    parser.add_argument('--batch-size', type=int, default=None,
+                       help='Circuits per batch (default: from config)')
+    parser.add_argument('--azure-interval', type=int, default=None,
+                       help='Azure upload interval (default: from config)')
     parser.add_argument('--profile', action='store_true',
                        help='Enable performance profiling')
     

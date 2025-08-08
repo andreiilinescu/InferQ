@@ -20,11 +20,12 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="${LOG_DIR}/parallel_pipeline_${TIMESTAMP}.log"
 PID_FILE="${LOG_DIR}/pipeline.pid"
 
-# HPC parameters (can be overridden via environment variables)
-WORKERS=${WORKERS:-}  # Auto-detect if not set (typically CPU-2)
-ITERATIONS=${ITERATIONS:-}  # Infinite by default
-BATCH_SIZE=${BATCH_SIZE:-200}  # Large batches for HPC
-AZURE_INTERVAL=${AZURE_INTERVAL:-500}  # Frequent uploads for HPC
+# Pipeline parameters (can be overridden via environment variables)
+# Empty defaults mean centralized config values will be used
+WORKERS=${WORKERS:-}  # Auto-detect if not set
+ITERATIONS=${ITERATIONS:-}  # Infinite by default  
+BATCH_SIZE=${BATCH_SIZE:-}  # Use config default if not set
+AZURE_INTERVAL=${AZURE_INTERVAL:-}  # Use config default if not set
 
 # Create necessary directories
 mkdir -p "$LOG_DIR"
@@ -65,10 +66,24 @@ check_azure_connection
 # Set process priority for better performance (if possible)
 optimize_process
 
+# Get config values for display when not overridden
+if [ -z "$WORKERS" ] || [ -z "$BATCH_SIZE" ] || [ -z "$AZURE_INTERVAL" ]; then
+    CONFIG_VALUES=$(python3 -c "
+from config import get_pipeline_config
+config = get_pipeline_config()
+print(f\"{config['workers']}|{config['batch_size']}|{config['azure_upload_interval']}\")
+" 2>/dev/null || echo "10|100|1000")
+    IFS='|' read -r CONFIG_WORKERS CONFIG_BATCH_SIZE CONFIG_AZURE_INTERVAL <<< "$CONFIG_VALUES"
+else
+    CONFIG_WORKERS=$WORKERS
+    CONFIG_BATCH_SIZE=$BATCH_SIZE
+    CONFIG_AZURE_INTERVAL=$AZURE_INTERVAL
+fi
+
 print_status "Configuration:"
-echo "  Workers: $WORKERS"
-echo "  Batch size: $BATCH_SIZE"
-echo "  Azure upload interval: $AZURE_INTERVAL"
+echo "  Workers: ${WORKERS:-$CONFIG_WORKERS}"
+echo "  Batch size: ${BATCH_SIZE:-$CONFIG_BATCH_SIZE}"
+echo "  Azure upload interval: ${AZURE_INTERVAL:-$CONFIG_AZURE_INTERVAL}"
 echo "  Log file: $LOG_FILE"
 echo "  PID file: $PID_FILE"
 echo ""
@@ -85,10 +100,10 @@ cd "$PROJECT_DIR"
 
 # Start the pipeline with optimal settings and logging
 python3 "$SCRIPT_NAME" \
-    --workers "$WORKERS" \
+    ${WORKERS:+--workers "$WORKERS"} \
     ${ITERATIONS:+--iterations "$ITERATIONS"} \
-    --batch-size "$BATCH_SIZE" \
-    --azure-interval "$AZURE_INTERVAL" \
+    ${BATCH_SIZE:+--batch-size "$BATCH_SIZE"} \
+    ${AZURE_INTERVAL:+--azure-interval "$AZURE_INTERVAL"} \
     2>&1 | tee "$LOG_FILE" &
 
 PIPELINE_PID=$!
