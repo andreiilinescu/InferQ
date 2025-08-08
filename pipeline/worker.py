@@ -21,7 +21,7 @@ from typing import Set
 
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-from config import get_circuit_config
+from config import get_circuit_config, get_simulation_config
 from utils.save_utils import save_circuit_locally
 from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
@@ -44,13 +44,10 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
         worker_logger = _setup_worker_logging(worker_id)
         worker_logger.info(f"Starting pipeline iteration (seed_offset={seed_offset})")
         
-        # Get circuit configuration from centralized config
+        # Get circuit and simulation configuration from centralized config
         circuit_config = get_circuit_config()
-        
-        # Use worker-specific seed based on config seed for reproducibility
-        base_seed = circuit_config['seed']
-        seed = base_seed + seed_offset + worker_id * 1000
-        
+        simulation_config = get_simulation_config()
+        seed=circuit_config['seed'] + seed_offset + worker_id * 1000
         # Initialize components using centralized configuration
         base_params = BaseParams(
             max_qubits=circuit_config['max_qubits'], 
@@ -60,9 +57,15 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
             seed=seed, 
             measure=circuit_config['measure']
         )
-        worker_logger.debug(f"Initializing components with seed {seed}")
+        # Calculate simulation seed
+        sim_seed = simulation_config['seed'] + seed_offset + worker_id * 1000
+        worker_logger.debug(f"Initializing components with circuit seed {seed}, simulation seed {sim_seed}")
         circuit_merger = CircuitMerger(base_params=base_params)
-        quantum_simulator = QuantumSimulator(seed=seed)
+        quantum_simulator = QuantumSimulator(
+            seed=sim_seed,
+            shots=simulation_config['shots'],
+            timeout_seconds=simulation_config['timeout_seconds']
+        )
         
         # Step 1: Generate circuit
         worker_logger.debug("Step 1: Generating circuit...")

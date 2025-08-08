@@ -128,6 +128,14 @@ class PipelineConfig:
             'max_generators': self.get_env_or_default('MAX_GENERATORS', self.CIRCUIT_GENERATION['max_generators'], int),
         }
     
+    def get_simulation_config(self):
+        """Get simulation configuration."""
+        return {
+            'shots': self.get_env_or_default('SHOTS', self.SIMULATION['shots'], int),
+            'seed': self.get_env_or_default('SIM_SEED', self.SIMULATION['seed'], int),
+            'timeout_seconds': self.get_env_or_default('SIM_TIMEOUT', self.SIMULATION['timeout_seconds'], int),
+        }
+    
     def apply_performance_optimizations(self):
         """Apply system-level performance optimizations."""
         # Set thread limits to avoid oversubscription
@@ -164,6 +172,7 @@ class PipelineConfig:
         """Print a summary of current configuration."""
         pipeline_config = self.get_pipeline_config()
         circuit_config = self.get_circuit_config()
+        simulation_config = self.get_simulation_config()
         azure_config = self.get_azure_config()
         
         print("Pipeline Configuration Summary")
@@ -177,9 +186,14 @@ class PipelineConfig:
         print(f"Circuit depth: {circuit_config['min_depth']}-{circuit_config['max_depth']}")
         print(f"Stopping probability: {circuit_config['stopping_probability']}")
         print(f"Max generators: {circuit_config['max_generators']}")
-        print(f"Seed: {circuit_config['seed']}")
+        print(f"Circuit seed: {circuit_config['seed']}")
         print()
-        print(f"Azure enabled: {azure_config['enabled']}")
+        print(f"Simulation shots: {simulation_config['shots'] or 'Exact'}")
+        print(f"Simulation seed: {simulation_config['seed']}")
+        print(f"Simulation timeout: {simulation_config['timeout_seconds']}s")
+        print()
+        print(f"Azure container: {azure_config['container_name']}")
+        print(f"Azure table: {azure_config['table_name']}")
         print(f"Local storage: {self.circuits_dir}")
         print("=" * 50)
 
@@ -194,6 +208,10 @@ def get_pipeline_config():
 def get_circuit_config():
     """Get circuit generation configuration."""
     return config.get_circuit_config()
+
+def get_simulation_config():
+    """Get simulation configuration."""
+    return config.get_simulation_config()
 
 def get_azure_config():
     """Get Azure configuration."""

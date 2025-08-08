@@ -31,16 +31,18 @@ class QuantumSimulator:
     density matrix, stabilizer, and extended stabilizer simulations.
     """
     
-    def __init__(self, shots: int|None = None, seed: Optional[int] = None):
+    def __init__(self, shots: int|None = None, seed: Optional[int] = None, timeout_seconds: Optional[int] = None):
         """
         Initialize the quantum simulator.
         
         Args:
             shots: Number of shots for sampling-based simulations
             seed: Random seed for reproducible results
+            timeout_seconds: Maximum time allowed for simulation (in seconds)
         """
         self.shots = shots
         self.seed = seed
+        self.timeout_seconds = timeout_seconds
         self.simulators = {}
         self._initialize_simulators()
     
@@ -232,7 +234,7 @@ class QuantumSimulator:
             import time
             start_time = time.time()
             job = simulator.run(transpiled_qc, **kwargs)
-            result = job.result()
+            result = job.result(timeout=self.timeout_seconds)
             end_time = time.time()
             measured_execution_time = end_time - start_time
             logger.debug(f"✓ {method.value} simulation job completed in {measured_execution_time:.4f}s")

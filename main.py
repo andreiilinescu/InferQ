@@ -1,6 +1,6 @@
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-from config import get_circuit_config, apply_optimizations
+from config import get_circuit_config, get_simulation_config, apply_optimizations
 
 from utils.save_utils import (
     save_circuit_locally,
@@ -149,8 +149,9 @@ def main():
     logger.info("🚀 Starting Quantum Circuit Processing Application")
     logger.info("=" * 80)
     
-    # Get circuit configuration
+    # Get circuit and simulation configuration
     circuit_config = get_circuit_config()
+    simulation_config = get_simulation_config()
     seed = circuit_config['seed']
     logger.info(f"Using random seed: {seed}")
     
@@ -186,7 +187,11 @@ def main():
     # Initialize quantum simulator
     logger.info("\nInitializing Quantum Simulator...")
     try:
-        quantumSimulator = QuantumSimulator(seed=seed, shots=None)
+        quantumSimulator = QuantumSimulator(
+            seed=simulation_config['seed'], 
+            shots=simulation_config['shots'],
+            timeout_seconds=simulation_config['timeout_seconds']
+        )
         logger.info("✓ Quantum simulator initialized")
     except Exception as e:
         logger.error(f"Failed to initialize quantum simulator: {e}")
