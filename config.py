@@ -88,13 +88,6 @@ class PipelineConfig:
         'memory_limit_percent': 80,
     }
     
-    # Duplicate Detection
-    DUPLICATE_DETECTION = {
-        'enabled': True,
-        'cache_validation': True,
-        'session_coordination': True,
-        'batch_sync_interval': 10,  # Sync every 10 batches
-    }
 
     def get_env_or_default(self, key, default=None, type_cast=None):
         """Get environment variable or return default."""
