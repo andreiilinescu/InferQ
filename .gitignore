@@ -20,3 +20,5 @@ circuits_hpc/
 logs/
 
 circuit_hashes_cache.json
+
+pipeline.log

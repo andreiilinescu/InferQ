@@ -27,13 +27,15 @@ def upload_batch_to_azure(circuit_batch: List[Dict[str, Any]], azure_conn: Azure
         azure_conn: Azure connection instance
         
     Returns:
-        Dictionary with upload statistics
+        Dictionary with upload statistics including successful and failed hashes
     """
     if not azure_conn:
-        return {'uploaded': 0, 'failed': 0, 'error': 'No Azure connection'}
+        return {'uploaded': 0, 'failed': 0, 'error': 'No Azure connection', 'successful_hashes': [], 'failed_hashes': []}
     
     uploaded = 0
     failed = 0
+    successful_hashes = []
+    failed_hashes = []
     
     # Log the start of Azure upload batch
     logger.warning(f"🔄 AZURE UPLOAD STARTING: Processing {len(circuit_batch)} circuits for cloud storage")
@@ -46,14 +48,15 @@ def upload_batch_to_azure(circuit_batch: List[Dict[str, Any]], azure_conn: Azure
             if not result.get('success') or not result.get('written'):
                 continue
                 
+            qpy_hash = result['circuit_hash']
+            
             try:
                 circuit = result['circuit']
                 features = result['features']
-                qpy_hash = result['circuit_hash']
                 serialization_method = result['serialization_method']
                 worker_id = result.get('worker_id', 'unknown')
                 
-                logger.warning(f"☁️  UPLOADING [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... from Worker-{worker_id} ({circuit.num_qubits}q, depth={circuit.depth()})")
+                logger.debug(f"☁️  UPLOADING [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... from Worker-{worker_id} ({circuit.num_qubits}q, depth={circuit.depth()})")
                 
                 # Upload to blob storage
                 blob_path = upload_circuit_blob(
@@ -66,19 +69,23 @@ def upload_batch_to_azure(circuit_batch: List[Dict[str, Any]], azure_conn: Azure
                 
                 if table_success:
                     uploaded += 1
-                    logger.warning(f"✅ AZURE SUCCESS [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... uploaded to cloud storage")
+                    successful_hashes.append(qpy_hash)
+                    logger.debug(f"✅ AZURE SUCCESS [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... uploaded to cloud storage")
                 else:
                     failed += 1
+                    failed_hashes.append(qpy_hash)
                     logger.warning(f"❌ AZURE METADATA FAILED [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... blob uploaded but metadata failed")
                     
             except Exception as e:
                 failed += 1
-                circuit_hash = result.get('circuit_hash', 'unknown')[:8] + '...' if result.get('circuit_hash') else 'unknown'
-                logger.warning(f"❌ AZURE UPLOAD FAILED [{i}/{len(circuit_batch)}]: Circuit {circuit_hash} - {str(e)}")
+                failed_hashes.append(qpy_hash)
+                logger.warning(f"❌ AZURE UPLOAD FAILED [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... - {str(e)}")
                 
     except Exception as e:
         logger.warning(f"❌ AZURE BATCH FAILED: Critical error during batch upload - {str(e)}")
-        return {'uploaded': 0, 'failed': len(circuit_batch), 'error': str(e)}
+        # Mark all circuits as failed
+        all_hashes = [result.get('circuit_hash') for result in circuit_batch if result.get('circuit_hash')]
+        return {'uploaded': 0, 'failed': len(circuit_batch), 'error': str(e), 'successful_hashes': [], 'failed_hashes': all_hashes}
     
     # Log the completion of Azure upload batch
     if uploaded > 0:
@@ -86,7 +93,12 @@ def upload_batch_to_azure(circuit_batch: List[Dict[str, Any]], azure_conn: Azure
     else:
         logger.warning(f"⚠️  AZURE UPLOAD COMPLETED: No circuits uploaded, {failed} failed")
     
-    return {'uploaded': uploaded, 'failed': failed}
+    return {
+        'uploaded': uploaded, 
+        'failed': failed,
+        'successful_hashes': successful_hashes,
+        'failed_hashes': failed_hashes
+    }
 
 def should_trigger_upload(upload_buffer: List[Dict[str, Any]], azure_upload_interval: int) -> bool:
     """

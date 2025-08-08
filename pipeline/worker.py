@@ -24,7 +24,7 @@ from utils.save_utils import save_circuit_locally
 from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
 from simulators.simulation_utils import process_simulation_data_for_features
-from utils.duplicate_detector import is_circuit_duplicate
+from utils.duplicate_detector import is_circuit_duplicate, initialize_duplicate_detection
 
 def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
     """
@@ -61,6 +61,10 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         
         # Step 2: Check for duplicates BEFORE expensive operations
         worker_logger.debug("Step 2: Checking for duplicates...")
+        
+        # Initialize duplicate detection in worker process (loads from cache)
+        initialize_duplicate_detection()
+        
         is_duplicate, circuit_hash = is_circuit_duplicate(circuit)
         
         if is_duplicate:

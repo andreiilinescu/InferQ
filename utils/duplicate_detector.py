@@ -31,6 +31,7 @@ class DuplicateDetector:
     
     Features:
     - Fetches existing hashes from Azure Table Storage at startup
+    - Tracks circuits in different states: Azure-confirmed, pending upload, session-processed
     - Caches hashes locally for O(1) lookup performance
     - Automatically saves/loads cache to local file
     - Thread-safe operations for multiprocessing
@@ -44,11 +45,21 @@ class DuplicateDetector:
             cache_file: Local file to cache circuit hashes
         """
         self.cache_file = Path(cache_file)
-        self.known_hashes: Set[str] = set()
+        
+        # Different hash sets for different states
+        self.azure_hashes: Set[str] = set()      # Confirmed in Azure
+        self.pending_hashes: Set[str] = set()    # In upload buffer
+        self.session_hashes: Set[str] = set()    # Processed this session
+        
         self.azure_conn: Optional[AzureConnection] = None
         self.last_sync: Optional[datetime] = None
         
         logger.info("Initializing DuplicateDetector...")
+    
+    @property
+    def known_hashes(self) -> Set[str]:
+        """Get all known hashes (union of all states)."""
+        return self.azure_hashes | self.pending_hashes | self.session_hashes
         
     def initialize(self, azure_conn: Optional[AzureConnection] = None, force_refresh: bool = False) -> bool:
         """
@@ -110,15 +121,22 @@ class DuplicateDetector:
             # Compute circuit hash using centralized function
             circuit_hash = compute_circuit_hash_simple(circuit)
             
-            # Check if hash exists in our known set
+
+            # Check if hash exists in any of our known sets
             is_dup = circuit_hash in self.known_hashes
             
             if is_dup:
-                logger.debug(f"🔍 Duplicate detected: {circuit_hash[:8]}...")
+                # Determine which set contains the hash for better logging
+                if circuit_hash in self.azure_hashes:
+                    logger.debug(f"🔍 Duplicate detected (Azure): {circuit_hash[:8]}...")
+                elif circuit_hash in self.pending_hashes:
+                    logger.debug(f"🔍 Duplicate detected (Pending upload): {circuit_hash[:8]}...")
+                elif circuit_hash in self.session_hashes:
+                    logger.debug(f"🔍 Duplicate detected (Session): {circuit_hash[:8]}...")
             else:
                 logger.debug(f"🆕 New circuit: {circuit_hash[:8]}...")
-                # Add to known hashes to prevent future duplicates in this session
-                self.known_hashes.add(circuit_hash)
+                # Add to session hashes to prevent future duplicates in this session
+                self.session_hashes.add(circuit_hash)
                 
             return is_dup, circuit_hash
             
@@ -126,6 +144,56 @@ class DuplicateDetector:
             logger.error(f"❌ Error checking duplicate: {e}")
             # On error, assume not duplicate to be safe
             return False, ""
+    
+    def mark_pending_upload(self, circuit_hash: str) -> None:
+        """
+        Mark a circuit hash as pending upload to Azure.
+        
+        Args:
+            circuit_hash: The circuit hash to mark as pending
+        """
+        if circuit_hash in self.session_hashes:
+            self.session_hashes.remove(circuit_hash)
+        self.pending_hashes.add(circuit_hash)
+        logger.debug(f"📤 Marked as pending upload: {circuit_hash[:8]}...")
+    
+    def mark_uploaded_to_azure(self, circuit_hash: str) -> None:
+        """
+        Mark a circuit hash as successfully uploaded to Azure.
+        
+        Args:
+            circuit_hash: The circuit hash to mark as uploaded
+        """
+        if circuit_hash in self.pending_hashes:
+            self.pending_hashes.remove(circuit_hash)
+        if circuit_hash in self.session_hashes:
+            self.session_hashes.remove(circuit_hash)
+        self.azure_hashes.add(circuit_hash)
+        logger.debug(f"☁️  Marked as uploaded to Azure: {circuit_hash[:8]}...")
+        
+        # Save updated cache to file (don't update last_sync - that's only for full Azure sync)
+        self._save_cache()
+    
+    def mark_upload_failed(self, circuit_hash: str) -> None:
+        """
+        Mark a circuit hash as failed to upload (move back to session).
+        
+        Args:
+            circuit_hash: The circuit hash that failed to upload
+        """
+        if circuit_hash in self.pending_hashes:
+            self.pending_hashes.remove(circuit_hash)
+        self.session_hashes.add(circuit_hash)
+        logger.debug(f"❌ Upload failed, moved back to session: {circuit_hash[:8]}...")
+    
+    def get_pending_hashes(self) -> Set[str]:
+        """Get all hashes pending upload."""
+        return self.pending_hashes.copy()
+    
+    def clear_session_hashes(self) -> None:
+        """Clear session hashes (useful for testing or cleanup)."""
+        self.session_hashes.clear()
+        logger.debug("🧹 Cleared session hashes")
     
 
     
@@ -152,7 +220,7 @@ class DuplicateDetector:
             for entity in entities:
                 circuit_hash = entity.get("RowKey")
                 if circuit_hash:
-                    self.known_hashes.add(circuit_hash)
+                    self.azure_hashes.add(circuit_hash)
                     hash_count += 1
                     
                     # Log progress for large datasets
@@ -187,20 +255,39 @@ class DuplicateDetector:
                 cache_data = json.load(f)
                 
             # Validate cache structure
-            if not isinstance(cache_data, dict) or 'hashes' not in cache_data:
-                logger.warning("⚠️  Invalid cache file format")
+            if not isinstance(cache_data, dict):
+                logger.warning("⚠️  Invalid cache file format - not a dictionary")
                 return False
-                
-            # Load hashes
-            self.known_hashes = set(cache_data['hashes'])
             
-            # Load metadata
-            if 'last_sync' in cache_data:
+            # Load hashes
+            azure_list = cache_data.get('azure_hashes', [])
+            pending_list = cache_data.get('pending_hashes', [])
+            session_list = cache_data.get('session_hashes', [])
+            
+            self.azure_hashes = set(azure_list)
+            self.pending_hashes = set(pending_list)
+            self.session_hashes = set(session_list)
+            
+            # Load metadata - preserve last_sync from Azure
+            if 'last_sync' in cache_data and cache_data['last_sync']:
                 self.last_sync = datetime.fromisoformat(cache_data['last_sync'])
                 
+            # Calculate cache age based on last Azure sync
             cache_age_hours = (datetime.now(timezone.utc) - self.last_sync).total_seconds() / 3600 if self.last_sync else float('inf')
             
-            logger.info(f"📁 Loaded cache: {len(self.known_hashes)} hashes (age: {cache_age_hours:.1f}h)")
+            # Get file update time for logging
+            file_updated_at = cache_data.get('file_updated_at', cache_data.get('created_at'))
+            file_age_hours = float('inf')
+            if file_updated_at:
+                try:
+                    file_updated = datetime.fromisoformat(file_updated_at)
+                    file_age_hours = (datetime.now(timezone.utc) - file_updated).total_seconds() / 3600
+                except:
+                    pass
+            
+            logger.info(f"📁 Loaded cache: {len(self.known_hashes)} hashes")
+            logger.info(f"   🔄 Last Azure sync: {cache_age_hours:.1f}h ago")
+            logger.info(f"   💾 File updated: {file_age_hours:.1f}h ago")
             
             return True
             
@@ -217,10 +304,12 @@ class DuplicateDetector:
         """
         try:
             cache_data = {
-                'hashes': list(self.known_hashes),
-                'last_sync': self.last_sync.isoformat() if self.last_sync else None,
+                'azure_hashes': list(self.azure_hashes),
+                'pending_hashes': list(self.pending_hashes),
+                'session_hashes': list(self.session_hashes),
+                'last_sync': self.last_sync.isoformat() if self.last_sync else None,  # Only updated when syncing with Azure
                 'total_count': len(self.known_hashes),
-                'created_at': datetime.now(timezone.utc).isoformat()
+                'file_updated_at': datetime.now(timezone.utc).isoformat()  # Always updated when file is saved
             }
             
             # Write to temporary file first, then rename (atomic operation)
@@ -254,6 +343,9 @@ class DuplicateDetector:
         """
         return {
             'known_hashes_count': len(self.known_hashes),
+            'azure_hashes_count': len(self.azure_hashes),
+            'pending_hashes_count': len(self.pending_hashes),
+            'session_hashes_count': len(self.session_hashes),
             'azure_connected': self.azure_conn is not None,
             'last_sync': self.last_sync.isoformat() if self.last_sync else None,
             'cache_file': str(self.cache_file),
@@ -302,6 +394,49 @@ def is_circuit_duplicate(circuit: QuantumCircuit) -> tuple[bool, str]:
     """
     detector = get_duplicate_detector()
     return detector.is_duplicate(circuit)
+
+def mark_circuits_pending_upload(circuit_hashes: list[str]) -> None:
+    """
+    Mark multiple circuit hashes as pending upload to Azure.
+    
+    Args:
+        circuit_hashes: List of circuit hashes to mark as pending
+    """
+    detector = get_duplicate_detector()
+    for circuit_hash in circuit_hashes:
+        detector.mark_pending_upload(circuit_hash)
+
+def mark_circuits_uploaded_to_azure(circuit_hashes: list[str]) -> None:
+    """
+    Mark multiple circuit hashes as successfully uploaded to Azure.
+    
+    Args:
+        circuit_hashes: List of circuit hashes to mark as uploaded
+    """
+    detector = get_duplicate_detector()
+    for circuit_hash in circuit_hashes:
+        # Mark without saving cache each time
+        if circuit_hash in detector.pending_hashes:
+            detector.pending_hashes.remove(circuit_hash)
+        if circuit_hash in detector.session_hashes:
+            detector.session_hashes.remove(circuit_hash)
+        detector.azure_hashes.add(circuit_hash)
+        logger.debug(f"☁️  Marked as uploaded to Azure: {circuit_hash[:8]}...")
+    
+    # Save cache once after all updates
+    detector._save_cache()
+    logger.debug(f"💾 Updated cache with {len(circuit_hashes)} newly uploaded circuits")
+
+def mark_circuits_upload_failed(circuit_hashes: list[str]) -> None:
+    """
+    Mark multiple circuit hashes as failed to upload.
+    
+    Args:
+        circuit_hashes: List of circuit hashes that failed to upload
+    """
+    detector = get_duplicate_detector()
+    for circuit_hash in circuit_hashes:
+        detector.mark_upload_failed(circuit_hash)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from utils.azure_connection import AzureConnection
-from utils.duplicate_detector import initialize_duplicate_detection, get_duplicate_detector
+from utils.duplicate_detector import (
+    initialize_duplicate_detection, get_duplicate_detector,
+    mark_circuits_pending_upload, mark_circuits_uploaded_to_azure, mark_circuits_upload_failed
+)
 from pipeline.worker import run_single_pipeline
 from pipeline.azure_manager import (
     upload_batch_to_azure, should_trigger_upload, 
@@ -95,6 +98,7 @@ class PipelineManager:
             if duplicate_init_success:
                 detector_stats = get_duplicate_detector().get_stats()
                 logger.warning(f"✅ Duplicate detection ready: {detector_stats['known_hashes_count']} known circuits")
+                logger.warning(f"   📊 Azure: {detector_stats['azure_hashes_count']}, Pending: {detector_stats['pending_hashes_count']}, Session: {detector_stats['session_hashes_count']}")
             else:
                 logger.warning("⚠️  Duplicate detection initialization failed - will check locally only")
             
@@ -205,6 +209,11 @@ class PipelineManager:
                 # Add to upload buffer if Azure is available and circuit was written (not duplicate)
                 if self.azure_conn and result.get('written'):
                     self.upload_buffer.append(result)
+                    # Mark circuit as pending upload in duplicate detector
+                    circuit_hash = result.get('circuit_hash')
+                    if circuit_hash:
+                        mark_circuits_pending_upload([circuit_hash])
+                        logger.debug(f"📤 Marked {circuit_hash[:8]}... as pending upload")
             else:
                 self.stats['failed'] += 1
                 logger.warning(f"Pipeline failed: {result.get('error', 'Unknown error')}")
@@ -214,9 +223,20 @@ class PipelineManager:
         if self.azure_conn and should_trigger_upload(self.upload_buffer, self.azure_upload_interval):
             log_upload_trigger(len(self.upload_buffer), self.azure_upload_interval)
             
+            # Extract circuit hashes before upload
+            circuit_hashes = [result.get('circuit_hash') for result in self.upload_buffer if result.get('circuit_hash')]
+            
             upload_stats = upload_batch_to_azure(self.upload_buffer, self.azure_conn)
             self.stats['uploaded_to_azure'] += upload_stats['uploaded']
             self.stats['upload_failures'] += upload_stats['failed']
+            
+            # Update duplicate detector with upload results
+            if upload_stats.get('successful_hashes'):
+                mark_circuits_uploaded_to_azure(upload_stats['successful_hashes'])
+                logger.debug(f"☁️  Marked {len(upload_stats['successful_hashes'])} circuits as uploaded to Azure")
+            if upload_stats.get('failed_hashes'):
+                mark_circuits_upload_failed(upload_stats['failed_hashes'])
+                logger.debug(f"❌ Marked {len(upload_stats['failed_hashes'])} circuits as upload failed")
             
             # Clear buffer
             self.upload_buffer = []
@@ -266,9 +286,19 @@ class PipelineManager:
         # Upload remaining circuits in buffer
         if self.azure_conn and self.upload_buffer:
             log_final_upload(len(self.upload_buffer))
+            
+            # Extract circuit hashes before upload
+            circuit_hashes = [result.get('circuit_hash') for result in self.upload_buffer if result.get('circuit_hash')]
+            
             upload_stats = upload_batch_to_azure(self.upload_buffer, self.azure_conn)
             self.stats['uploaded_to_azure'] += upload_stats['uploaded']
             self.stats['upload_failures'] += upload_stats['failed']
+            
+            # Update duplicate detector with upload results
+            if upload_stats.get('successful_hashes'):
+                mark_circuits_uploaded_to_azure(upload_stats['successful_hashes'])
+            if upload_stats.get('failed_hashes'):
+                mark_circuits_upload_failed(upload_stats['failed_hashes'])
     
     def _get_final_stats(self) -> Dict[str, Any]:
         """
