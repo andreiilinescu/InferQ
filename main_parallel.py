@@ -61,10 +61,10 @@ verbose_loggers = [
     'qiskit', 'qiskit.passmanager', 'qiskit.compiler', 'qiskit.transpiler', 'qiskit_aer',
     'azure.core', 'azure.storage', 'azure.data.tables', 'azure.storage.blob',
     'azure.core.pipeline.policies.http_logging_policy',
-    # 'simulators.simulate', 'simulators.simulation_utils',  # Temporarily enable for debugging
+    'simulators.simulate', 'simulators.simulation_utils',  # Temporarily enable for debugging
     'feature_extractors.extractors', 'feature_extractors.static_features',
     'feature_extractors.graph_features', 'feature_extractors.dynamic_features', 'feature_extractors.graphs',
-    # 'generators.circuit_merger', 
+    'generators.circuit_merger', 
     'utils.local_storage', 'utils.table_storage',
     'utils.blob_storage', 'utils.azure_connection', 'utils.save_utils',
     'rustworkx', 'rx',  # Suppress rustworkx matrix outputs
@@ -98,6 +98,26 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         Dictionary with pipeline results including circuit data for remote upload
     """
     try:
+        # Configure worker-specific logging
+        import logging
+        import sys
+        
+        # Create worker-specific logger
+        worker_logger = logging.getLogger(f'worker_{worker_id}')
+        worker_logger.setLevel(logging.INFO)
+        
+        # Create formatter that includes worker ID
+        formatter = logging.Formatter(f'%(asctime)s - WORKER-{worker_id} - %(levelname)s - %(message)s')
+        
+        # Add handler if not already present
+        if not worker_logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(formatter)
+            worker_logger.addHandler(handler)
+            worker_logger.propagate = False  # Prevent duplicate messages
+        
+        worker_logger.info(f"Starting pipeline iteration (seed_offset={seed_offset})")
+        
         # Use worker-specific seed for reproducibility
         seed = 42 + seed_offset + worker_id * 1000
         
@@ -106,25 +126,36 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
             max_qubits=8, min_qubits=2, max_depth=1000, min_depth=10, 
             seed=seed, measure=False
         )
+        worker_logger.debug(f"Initializing components with seed {seed}")
         circuit_merger = CircuitMerger(base_params=base_params)
         quantum_simulator = QuantumSimulator(seed=seed)
         
         # Step 1: Generate circuit
+        worker_logger.debug("Step 1: Generating circuit...")
         circuit = circuit_merger.generate_hierarchical_circuit()
+        worker_logger.info(f"Generated circuit: {circuit.num_qubits} qubits, depth {circuit.depth()}, size {circuit.size()}")
         
         # Step 2: Extract features
+        worker_logger.debug("Step 2: Extracting features...")
         features = extract_features(circuit=circuit)
+        worker_logger.debug(f"Extracted {len(features)} features")
         
         # Step 3: Run simulations
+        worker_logger.debug("Step 3: Running simulations...")
         simulation_results = quantum_simulator.simulate_all_methods(circuit)
+        successful_sims = sum(1 for r in simulation_results.values() if r.get('success', False))
+        worker_logger.info(f"Simulations completed: {successful_sims}/{len(simulation_results)} successful")
         
         # Step 4: Process simulation data
+        worker_logger.debug("Step 4: Processing simulation data...")
         combined_features = process_simulation_data_for_features(simulation_results, features)
         
         # Step 5: Save locally (prioritize local storage for performance)
+        worker_logger.debug("Step 5: Saving circuit locally...")
         qpy_hash, saved_features, written = save_circuit_locally(
             circuit, combined_features, Path("./circuits_hpc/")
         )
+        worker_logger.info(f"Circuit saved: hash={qpy_hash[:8]}..., written={written}")
         
         return {
             'success': True,
@@ -143,6 +174,12 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         }
         
     except Exception as e:
+        # Use worker logger if available, otherwise fall back to regular logging
+        try:
+            worker_logger.error(f"Pipeline failed: {str(e)}")
+        except:
+            logger.error(f"Worker {worker_id} pipeline failed: {str(e)}")
+        
         return {
             'success': False,
             'worker_id': worker_id,
