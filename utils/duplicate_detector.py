@@ -38,13 +38,17 @@ class DuplicateDetector:
     - Thread-safe operations for multiprocessing
     """
     
-    def __init__(self, cache_file: str = "circuit_hashes_cache.json"):
+    def __init__(self, cache_file: str = None):
         """
         Initialize the duplicate detector.
         
         Args:
-            cache_file: Local file to cache circuit hashes
+            cache_file: Local file to cache circuit hashes (defaults to config value)
         """
+        if cache_file is None:
+            from config import get_storage_config
+            storage_config = get_storage_config()
+            cache_file = storage_config['cache_file']
         self.cache_file = Path(cache_file)
         
         # Different hash sets for different states

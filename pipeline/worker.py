@@ -21,7 +21,7 @@ from typing import Set
 
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-from config import get_circuit_config, get_simulation_config
+from config import get_circuit_config, get_simulation_config, get_storage_config
 from utils.save_utils import save_circuit_locally
 from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
@@ -44,9 +44,10 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
         worker_logger = _setup_worker_logging(worker_id)
         worker_logger.info(f"Starting pipeline iteration (seed_offset={seed_offset})")
         
-        # Get circuit and simulation configuration from centralized config
+        # Get circuit, simulation, and storage configuration from centralized config
         circuit_config = get_circuit_config()
         simulation_config = get_simulation_config()
+        storage_config = get_storage_config()
         seed=circuit_config['seed'] + seed_offset + worker_id * 1000
         # Initialize components using centralized configuration
         base_params = BaseParams(
@@ -114,7 +115,7 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
         # Step 6: Save locally (we know it's new, so should save successfully)
         worker_logger.debug("Step 6: Saving circuit locally...")
         saved_hash, saved_features, written = save_circuit_locally(
-            circuit, combined_features, Path("./circuits_hpc/"), expected_hash=circuit_hash
+            circuit, combined_features, Path(f"./{storage_config['local_circuits_dir']}/"), expected_hash=circuit_hash
         )
         worker_logger.info(f"Circuit saved: hash={saved_hash[:8]}..., written={written}")
         

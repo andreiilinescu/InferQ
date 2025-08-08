@@ -23,7 +23,7 @@ from utils.duplicate_detector import (
     coordinate_batch_session_hashes, get_current_session_hashes
 )
 from pipeline.worker import run_single_pipeline
-from config import get_pipeline_config
+from config import get_pipeline_config, get_storage_config
 from pipeline.azure_manager import (
     upload_batch_to_azure, should_trigger_upload, 
     log_upload_trigger, log_final_upload
@@ -107,8 +107,9 @@ class PipelineManager:
             else:
                 logger.warning("⚠️  Duplicate detection initialization failed - will check locally only")
             
-            # Create local storage directory
-            Path("./circuits_hpc").mkdir(exist_ok=True)
+            # Create local storage directory from config
+            storage_config = get_storage_config()
+            Path(f"./{storage_config['local_circuits_dir']}").mkdir(exist_ok=True)
             
             return True
             
@@ -264,7 +265,8 @@ class PipelineManager:
     def _handle_cleanup(self) -> None:
         """Handle periodic cleanup of old circuit files."""
         if should_cleanup(self.stats['total_processed']):
-            cleanup_stats = cleanup_old_circuits(Path("./circuits_hpc"), max_age_hours=24)
+            storage_config = get_storage_config()
+            cleanup_stats = cleanup_old_circuits(Path(f"./{storage_config['local_circuits_dir']}"), max_age_hours=24)
             log_cleanup_results(cleanup_stats)
     
     def _log_batch_status(self, batch_num: int, batch_results: List[Dict[str, Any]]) -> None:

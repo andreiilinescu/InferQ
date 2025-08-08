@@ -1,6 +1,6 @@
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-from config import get_circuit_config, get_simulation_config, apply_optimizations
+from config import get_circuit_config, get_simulation_config, get_storage_config, apply_optimizations
 
 from utils.save_utils import (
     save_circuit_locally,
@@ -90,7 +90,7 @@ def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: Quan
     logger.info("\nSTEP 4: Local Storage")
     logger.info("-" * 30)
     try:
-        qpy_hash, features, written = save_circuit_locally(circ, combined_features, Path("./circuits/"))
+        qpy_hash, features, written = save_circuit_locally(circ, combined_features, Path(f"./{storage_config['local_circuits_dir']}/"))
         if written:
             logger.info(f"✓ Circuit saved locally with hash: {qpy_hash}")
             logger.info(f"✓ Serialization method: {features.get('serialization_method', 'unknown')}")
@@ -149,9 +149,10 @@ def main():
     logger.info("🚀 Starting Quantum Circuit Processing Application")
     logger.info("=" * 80)
     
-    # Get circuit and simulation configuration
+    # Get circuit, simulation, and storage configuration
     circuit_config = get_circuit_config()
     simulation_config = get_simulation_config()
+    storage_config = get_storage_config()
     seed = circuit_config['seed']
     logger.info(f"Using random seed: {seed}")
     

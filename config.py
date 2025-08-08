@@ -136,6 +136,14 @@ class PipelineConfig:
             'timeout_seconds': self.get_env_or_default('SIM_TIMEOUT', self.SIMULATION['timeout_seconds'], int),
         }
     
+    def get_storage_config(self):
+        """Get storage configuration."""
+        return {
+            'local_circuits_dir': self.get_env_or_default('LOCAL_CIRCUITS_DIR', self.STORAGE['local_circuits_dir']),
+            'cache_file': self.get_env_or_default('CACHE_FILE', self.STORAGE['cache_file']),
+            'max_local_storage_gb': self.get_env_or_default('MAX_STORAGE_GB', self.STORAGE['max_local_storage_gb'], int),
+        }
+    
     def apply_performance_optimizations(self):
         """Apply system-level performance optimizations."""
         # Set thread limits to avoid oversubscription
@@ -173,6 +181,7 @@ class PipelineConfig:
         pipeline_config = self.get_pipeline_config()
         circuit_config = self.get_circuit_config()
         simulation_config = self.get_simulation_config()
+        storage_config = self.get_storage_config()
         azure_config = self.get_azure_config()
         
         print("Pipeline Configuration Summary")
@@ -192,9 +201,12 @@ class PipelineConfig:
         print(f"Simulation seed: {simulation_config['seed']}")
         print(f"Simulation timeout: {simulation_config['timeout_seconds']}s")
         print()
+        print(f"Local circuits dir: {storage_config['local_circuits_dir']}")
+        print(f"Cache file: {storage_config['cache_file']}")
+        print(f"Max storage: {storage_config['max_local_storage_gb']}GB")
+        print()
         print(f"Azure container: {azure_config['container_name']}")
         print(f"Azure table: {azure_config['table_name']}")
-        print(f"Local storage: {self.circuits_dir}")
         print("=" * 50)
 
 # Global configuration instance
@@ -212,6 +224,10 @@ def get_circuit_config():
 def get_simulation_config():
     """Get simulation configuration."""
     return config.get_simulation_config()
+
+def get_storage_config():
+    """Get storage configuration."""
+    return config.get_storage_config()
 
 def get_azure_config():
     """Get Azure configuration."""
