@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+"""
+Pipeline Manager Module
+
+Orchestrates the high-performance parallel quantum circuit processing pipeline.
+Manages worker processes, Azure uploads, system monitoring, and overall
+pipeline coordination.
+
+Author: InferQ Pipeline System
+"""
+
+import time
+import logging
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+from utils.azure_connection import AzureConnection
+from utils.duplicate_detector import initialize_duplicate_detection, get_duplicate_detector
+from pipeline.worker import run_single_pipeline
+from pipeline.azure_manager import (
+    upload_batch_to_azure, should_trigger_upload, 
+    log_upload_trigger, log_final_upload
+)
+from pipeline.system_utils import (
+    monitor_system_resources, cleanup_old_circuits, log_system_startup,
+    should_cleanup, log_cleanup_results
+)
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+class PipelineManager:
+    """
+    High-performance parallel quantum circuit processing pipeline manager.
+    
+    Coordinates worker processes, Azure uploads, system monitoring,
+    and overall pipeline execution.
+    """
+    
+    def __init__(self, num_workers: Optional[int] = None, azure_upload_interval: int = 100):
+        """
+        Initialize the pipeline manager.
+        
+        Args:
+            num_workers: Number of parallel workers (default: CPU count - 2)
+            azure_upload_interval: Upload to Azure every N circuits
+        """
+        # Set optimal worker count
+        if num_workers is None:
+            num_workers = min(22, mp.cpu_count() - 2)  # Leave 2 cores for system
+        
+        self.num_workers = num_workers
+        self.azure_upload_interval = azure_upload_interval
+        self.azure_conn: Optional[AzureConnection] = None
+        self.shutdown_flag = mp.Value('i', 0)
+        
+        # Statistics tracking
+        self.stats = {
+            'total_processed': 0,
+            'successful': 0,
+            'failed': 0,
+            'uploaded_to_azure': 0,
+            'upload_failures': 0,
+            'start_time': time.time(),
+            'last_azure_upload': 0
+        }
+        
+        # Upload buffer
+        self.upload_buffer: List[Dict[str, Any]] = []
+    
+    def initialize(self) -> bool:
+        """
+        Initialize the pipeline manager and all subsystems.
+        
+        Returns:
+            True if initialization successful, False otherwise
+        """
+        try:
+            # Log system startup
+            log_system_startup(self.num_workers)
+            
+            # Initialize Azure connection ONCE for both duplicate detection and uploads
+            try:
+                self.azure_conn = AzureConnection()
+                logger.warning("✓ Azure connection established for remote storage")
+            except Exception as e:
+                logger.warning(f"⚠️  Azure connection failed: {e}")
+                logger.warning("⚠️  Remote storage disabled - LOCAL ONLY mode")
+            
+            # Initialize duplicate detection system with shared Azure connection
+            logger.warning("🔍 Initializing duplicate detection system...")
+            duplicate_init_success = initialize_duplicate_detection(azure_conn=self.azure_conn)
+            if duplicate_init_success:
+                detector_stats = get_duplicate_detector().get_stats()
+                logger.warning(f"✅ Duplicate detection ready: {detector_stats['known_hashes_count']} known circuits")
+            else:
+                logger.warning("⚠️  Duplicate detection initialization failed - will check locally only")
+            
+            # Create local storage directory
+            Path("./circuits_hpc").mkdir(exist_ok=True)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize pipeline manager: {e}")
+            return False
+    
+    def run_pipeline(self, max_iterations: Optional[int] = None, batch_size: int = 50) -> Dict[str, Any]:
+        """
+        Run the parallel pipeline with continuous operation.
+        
+        Args:
+            max_iterations: Maximum iterations (None for infinite)
+            batch_size: Circuits per batch before status update
+            
+        Returns:
+            Dictionary with final pipeline statistics
+        """
+        iteration = 0
+        
+        try:
+            with ProcessPoolExecutor(max_workers=self.num_workers) as executor:
+                
+                while max_iterations is None or iteration < max_iterations:
+                    if self.shutdown_flag.value:
+                        logger.warning("Shutdown flag detected, stopping pipeline...")
+                        break
+                    
+                    # Process a batch of circuits
+                    batch_results = self._process_batch(executor, batch_size, iteration)
+                    
+                    # Update statistics and handle uploads
+                    self._update_stats(batch_results)
+                    self._handle_azure_uploads()
+                    self._handle_cleanup()
+                    
+                    # Log batch status
+                    self._log_batch_status(iteration + 1, batch_results)
+                    
+                    iteration += 1
+                    
+                    # Brief pause to prevent system overload
+                    time.sleep(0.05)
+        
+        except KeyboardInterrupt:
+            logger.warning("KeyboardInterrupt received, shutting down...")
+        except Exception as e:
+            logger.error(f"Pipeline error: {e}")
+        finally:
+            # Final cleanup and uploads
+            self._finalize_pipeline()
+        
+        return self._get_final_stats()
+    
+    def _process_batch(self, executor: ProcessPoolExecutor, batch_size: int, iteration: int) -> List[Dict[str, Any]]:
+        """
+        Process a batch of circuits using the executor.
+        
+        Args:
+            executor: Process pool executor
+            batch_size: Number of circuits in batch
+            iteration: Current iteration number
+            
+        Returns:
+            List of batch results
+        """
+        # Submit batch of work
+        futures = []
+        for i in range(batch_size):
+            if self.shutdown_flag.value:
+                break
+            future = executor.submit(run_single_pipeline, i % self.num_workers, iteration * batch_size + i)
+            futures.append(future)
+        
+        # Process completed work
+        batch_results = []
+        for future in as_completed(futures):
+            if self.shutdown_flag.value:
+                break
+            
+            result = future.result()
+            batch_results.append(result)
+        
+        return batch_results
+    
+    def _update_stats(self, batch_results: List[Dict[str, Any]]) -> None:
+        """
+        Update pipeline statistics based on batch results.
+        
+        Args:
+            batch_results: Results from the current batch
+        """
+        for result in batch_results:
+            self.stats['total_processed'] += 1
+            
+            if result['success']:
+                self.stats['successful'] += 1
+                
+                # Log duplicate detection results
+                if result.get('duplicate', False):
+                    logger.debug(f"Worker-{result['worker_id']}: Duplicate circuit skipped")
+                
+                # Add to upload buffer if Azure is available and circuit was written (not duplicate)
+                if self.azure_conn and result.get('written'):
+                    self.upload_buffer.append(result)
+            else:
+                self.stats['failed'] += 1
+                logger.warning(f"Pipeline failed: {result.get('error', 'Unknown error')}")
+    
+    def _handle_azure_uploads(self) -> None:
+        """Handle Azure uploads when buffer reaches threshold."""
+        if self.azure_conn and should_trigger_upload(self.upload_buffer, self.azure_upload_interval):
+            log_upload_trigger(len(self.upload_buffer), self.azure_upload_interval)
+            
+            upload_stats = upload_batch_to_azure(self.upload_buffer, self.azure_conn)
+            self.stats['uploaded_to_azure'] += upload_stats['uploaded']
+            self.stats['upload_failures'] += upload_stats['failed']
+            
+            # Clear buffer
+            self.upload_buffer = []
+            self.stats['last_azure_upload'] = self.stats['total_processed']
+    
+    def _handle_cleanup(self) -> None:
+        """Handle periodic cleanup of old circuit files."""
+        if should_cleanup(self.stats['total_processed']):
+            cleanup_stats = cleanup_old_circuits(Path("./circuits_hpc"), max_age_hours=24)
+            log_cleanup_results(cleanup_stats)
+    
+    def _log_batch_status(self, batch_num: int, batch_results: List[Dict[str, Any]]) -> None:
+        """
+        Log status after each batch completion.
+        
+        Args:
+            batch_num: Current batch number
+            batch_results: Results from the current batch
+        """
+        # Calculate batch statistics
+        batch_successful = sum(1 for r in batch_results if r.get('success', False))
+        batch_failed = len(batch_results) - batch_successful
+        
+        # Calculate rates
+        elapsed = time.time() - self.stats['start_time']
+        rate = self.stats['total_processed'] / elapsed * 60 if elapsed > 0 else 0
+        
+        # Monitor system resources
+        resources = monitor_system_resources()
+        
+        # Enhanced status with Azure upload info
+        azure_status = ""
+        if self.azure_conn:
+            azure_status = f" | Azure: {self.stats['uploaded_to_azure']}↑ | Buffer: {len(self.upload_buffer)}"
+        
+        logger.warning(
+            f"Batch {batch_num}: {batch_successful}✓/{batch_failed}✗ | "
+            f"Total: {self.stats['successful']}✓/{self.stats['failed']}✗ | "
+            f"Rate: {rate:.1f}/min | "
+            f"CPU: {resources['cpu_percent']:.1f}% | "
+            f"RAM: {resources['memory_percent']:.1f}% | "
+            f"Disk: {resources['disk_free_gb']:.1f}GB{azure_status}"
+        )
+    
+    def _finalize_pipeline(self) -> None:
+        """Finalize pipeline execution with cleanup and final uploads."""
+        # Upload remaining circuits in buffer
+        if self.azure_conn and self.upload_buffer:
+            log_final_upload(len(self.upload_buffer))
+            upload_stats = upload_batch_to_azure(self.upload_buffer, self.azure_conn)
+            self.stats['uploaded_to_azure'] += upload_stats['uploaded']
+            self.stats['upload_failures'] += upload_stats['failed']
+    
+    def _get_final_stats(self) -> Dict[str, Any]:
+        """
+        Get final pipeline statistics.
+        
+        Returns:
+            Dictionary with final statistics
+        """
+        elapsed = time.time() - self.stats['start_time']
+        rate = self.stats['total_processed'] / elapsed * 60 if elapsed > 0 else 0
+        
+        # Log final statistics
+        logger.warning("=" * 80)
+        logger.warning("PIPELINE COMPLETED")
+        logger.warning(f"Total processed: {self.stats['total_processed']}")
+        logger.warning(f"Successful: {self.stats['successful']}")
+        logger.warning(f"Failed: {self.stats['failed']}")
+        if self.stats['total_processed'] > 0:
+            logger.warning(f"Success rate: {self.stats['successful']/self.stats['total_processed']*100:.1f}%")
+        if self.azure_conn:
+            logger.warning(f"Uploaded to Azure: {self.stats['uploaded_to_azure']}")
+            logger.warning(f"Upload failures: {self.stats['upload_failures']}")
+            total_uploads = self.stats['uploaded_to_azure'] + self.stats['upload_failures']
+            if total_uploads > 0:
+                logger.warning(f"Upload success rate: {self.stats['uploaded_to_azure']/total_uploads*100:.1f}%")
+        logger.warning(f"Average rate: {rate:.1f} circuits/minute")
+        logger.warning(f"Total runtime: {elapsed/3600:.1f} hours")
+        logger.warning("=" * 80)
+        
+        return {
+            **self.stats,
+            'elapsed_time': elapsed,
+            'rate_per_minute': rate,
+            'success_rate': self.stats['successful']/self.stats['total_processed']*100 if self.stats['total_processed'] > 0 else 0
+        }
+    
+    def set_shutdown_flag(self) -> None:
+        """Set the shutdown flag to gracefully stop the pipeline."""
+        self.shutdown_flag.value = 1
+
+
+def run_parallel_pipeline(num_workers: Optional[int] = None, max_iterations: Optional[int] = None, 
+                         batch_size: int = 50, azure_upload_interval: int = 100) -> Dict[str, Any]:
+    """
+    Run the parallel pipeline with the specified parameters.
+    
+    Args:
+        num_workers: Number of parallel workers (default: CPU count - 2)
+        max_iterations: Maximum iterations (None for infinite)
+        batch_size: Circuits per batch before status update
+        azure_upload_interval: Upload to Azure every N circuits
+        
+    Returns:
+        Dictionary with final pipeline statistics
+    """
+    # Create and initialize pipeline manager
+    manager = PipelineManager(num_workers=num_workers, azure_upload_interval=azure_upload_interval)
+    
+    if not manager.initialize():
+        logger.error("❌ Failed to initialize pipeline manager")
+        return {'error': 'Initialization failed'}
+    
+    # Run the pipeline
+    return manager.run_pipeline(max_iterations=max_iterations, batch_size=batch_size)

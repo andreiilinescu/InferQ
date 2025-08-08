@@ -1,0 +1,46 @@
+2025-08-08 21:43:52,771 - WARNING - 🚀 Starting parallel pipeline with 2 workers
+2025-08-08 21:43:52,771 - WARNING - System: 12 cores, 36.0GB RAM
+2025-08-08 21:43:52,772 - WARNING - 🔍 Initializing duplicate detection system...
+2025-08-08 21:44:08,344 - WARNING - ✅ Duplicate detection ready: 754 known circuits
+2025-08-08 21:44:23,679 - WARNING - ✓ Azure connection established for remote storage
+2025-08-08 21:45:05,988 - WARNING - Batch 1: 2✓/0✗ | Total: 2✓/0✗ | Rate: 1.7/min | CPU: 19.4% | RAM: 60.5% | Disk: 311.1GB | Azure: 0↑ | Buffer: 1
+2025-08-08 21:45:06,326 - WARNING - 🏁 FINAL AZURE UPLOAD: Processing 1 remaining circuits before shutdown
+2025-08-08 21:45:06,326 - WARNING - 🔄 AZURE UPLOAD STARTING: Processing 1 circuits for cloud storage
+2025-08-08 21:45:06,358 - WARNING - ☁️  UPLOADING [1/1]: Circuit 53febc69... from Worker-1 (6q, depth=10145)
+2025-08-08 21:45:08,049 - WARNING - ✅ AZURE SUCCESS [1/1]: Circuit 53febc69... uploaded to cloud storage
+2025-08-08 21:45:08,049 - WARNING - 🎉 AZURE UPLOAD COMPLETED: 1 circuits successfully stored in cloud, 0 failed
+2025-08-08 21:45:08,049 - WARNING - ================================================================================
+2025-08-08 21:45:08,049 - WARNING - PIPELINE COMPLETED
+2025-08-08 21:45:08,049 - WARNING - Total processed: 2
+2025-08-08 21:45:08,049 - WARNING - Successful: 2
+2025-08-08 21:45:08,049 - WARNING - Failed: 0
+2025-08-08 21:45:08,049 - WARNING - Success rate: 100.0%
+2025-08-08 21:45:08,049 - WARNING - Uploaded to Azure: 1
+2025-08-08 21:45:08,049 - WARNING - Upload failures: 0
+2025-08-08 21:45:08,049 - WARNING - Upload success rate: 100.0%
+2025-08-08 21:45:08,049 - WARNING - Average rate: 1.6 circuits/minute
+2025-08-08 21:45:08,049 - WARNING - Total runtime: 0.0 hours
+2025-08-08 21:45:08,049 - WARNING - ================================================================================
+2025-08-08 21:47:43,733 - WARNING - 🚀 Starting parallel pipeline with 2 workers
+2025-08-08 21:47:43,733 - WARNING - System: 12 cores, 36.0GB RAM
+2025-08-08 21:47:59,245 - WARNING - ✓ Azure connection established for remote storage
+2025-08-08 21:47:59,246 - WARNING - 🔍 Initializing duplicate detection system...
+2025-08-08 21:47:59,246 - WARNING - ✅ Duplicate detection ready: 754 known circuits
+2025-08-08 21:48:41,699 - WARNING - Batch 1: 2✓/0✗ | Total: 2✓/0✗ | Rate: 2.1/min | CPU: 22.4% | RAM: 60.7% | Disk: 311.1GB | Azure: 0↑ | Buffer: 1
+2025-08-08 21:48:42,060 - WARNING - 🏁 FINAL AZURE UPLOAD: Processing 1 remaining circuits before shutdown
+2025-08-08 21:48:42,060 - WARNING - 🔄 AZURE UPLOAD STARTING: Processing 1 circuits for cloud storage
+2025-08-08 21:48:42,093 - WARNING - ☁️  UPLOADING [1/1]: Circuit 275f500d... from Worker-1 (6q, depth=10145)
+2025-08-08 21:48:43,243 - WARNING - ✅ AZURE SUCCESS [1/1]: Circuit 275f500d... uploaded to cloud storage
+2025-08-08 21:48:43,243 - WARNING - 🎉 AZURE UPLOAD COMPLETED: 1 circuits successfully stored in cloud, 0 failed
+2025-08-08 21:48:43,243 - WARNING - ================================================================================
+2025-08-08 21:48:43,244 - WARNING - PIPELINE COMPLETED
+2025-08-08 21:48:43,244 - WARNING - Total processed: 2
+2025-08-08 21:48:43,244 - WARNING - Successful: 2
+2025-08-08 21:48:43,244 - WARNING - Failed: 0
+2025-08-08 21:48:43,244 - WARNING - Success rate: 100.0%
+2025-08-08 21:48:43,244 - WARNING - Uploaded to Azure: 1
+2025-08-08 21:48:43,244 - WARNING - Upload failures: 0
+2025-08-08 21:48:43,244 - WARNING - Upload success rate: 100.0%
+2025-08-08 21:48:43,244 - WARNING - Average rate: 2.0 circuits/minute
+2025-08-08 21:48:43,244 - WARNING - Total runtime: 0.0 hours
+2025-08-08 21:48:43,244 - WARNING - ================================================================================

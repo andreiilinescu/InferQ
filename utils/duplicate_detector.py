@@ -50,25 +50,30 @@ class DuplicateDetector:
         
         logger.info("Initializing DuplicateDetector...")
         
-    def initialize(self, force_refresh: bool = False) -> bool:
+    def initialize(self, azure_conn: Optional[AzureConnection] = None, force_refresh: bool = False) -> bool:
         """
         Initialize the duplicate detector by loading existing hashes.
         
         Args:
+            azure_conn: Shared Azure connection instance (optional)
             force_refresh: If True, fetch fresh data from Azure instead of using cache
             
         Returns:
             True if initialization successful, False otherwise
         """
         try:
-            # Try to establish Azure connection
-            try:
-                self.azure_conn = AzureConnection()
-                logger.info("✓ Azure connection established for duplicate detection")
-            except Exception as e:
-                logger.warning(f"⚠️  Azure connection failed: {e}")
-                logger.warning("⚠️  Duplicate detection will use local cache only")
-                self.azure_conn = None
+            # Use provided Azure connection or try to create one
+            if azure_conn:
+                self.azure_conn = azure_conn
+                logger.info("✓ Using shared Azure connection for duplicate detection")
+            else:
+                try:
+                    self.azure_conn = AzureConnection()
+                    logger.info("✓ Azure connection established for duplicate detection")
+                except Exception as e:
+                    logger.warning(f"⚠️  Azure connection failed: {e}")
+                    logger.warning("⚠️  Duplicate detection will use local cache only")
+                    self.azure_conn = None
             
             # Load from cache first (fast startup)
             if not force_refresh and self._load_cache():
@@ -271,18 +276,19 @@ def get_duplicate_detector() -> DuplicateDetector:
         _global_detector = DuplicateDetector()
     return _global_detector
 
-def initialize_duplicate_detection(force_refresh: bool = False) -> bool:
+def initialize_duplicate_detection(azure_conn: Optional[AzureConnection] = None, force_refresh: bool = False) -> bool:
     """
     Initialize the global duplicate detection system.
     
     Args:
+        azure_conn: Shared Azure connection instance (optional)
         force_refresh: If True, fetch fresh data from Azure instead of using cache
         
     Returns:
         True if initialization successful, False otherwise
     """
     detector = get_duplicate_detector()
-    return detector.initialize(force_refresh=force_refresh)
+    return detector.initialize(azure_conn=azure_conn, force_refresh=force_refresh)
 
 def is_circuit_duplicate(circuit: QuantumCircuit) -> tuple[bool, str]:
     """
