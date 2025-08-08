@@ -34,8 +34,8 @@ class PipelineConfig:
     # Pipeline Defaults
     PIPELINE_DEFAULTS = {
         'workers': None,  # Auto-detect
-        'batch_size': 100,
-        'azure_upload_interval': 1000,
+        'batch_size': 2,
+        'azure_upload_interval': 2,
         'max_iterations': None,  # Infinite
     }
     
@@ -67,12 +67,8 @@ class PipelineConfig:
     
     # Azure Configuration
     AZURE = {
-        'enabled': True,  # Will fallback to local if connection fails
         'container_name': 'circuits',
         'table_name': 'circuits',
-        'retry_attempts': 3,
-        'timeout_seconds': 300,
-        'batch_upload_size': 100,
     }
     
     # Logging Configuration
@@ -157,14 +153,11 @@ class PipelineConfig:
     def get_azure_config(self):
         """Get Azure configuration."""
         return {
-            'enabled': self.get_env_or_default('AZURE_ENABLED', self.AZURE['enabled'], bool),
             'connection_string': self.get_env_or_default('AZURE_STORAGE_CONNECTION_STRING'),
             'account_name': self.get_env_or_default('AZURE_STORAGE_ACCOUNT_NAME'),
             'account_key': self.get_env_or_default('AZURE_STORAGE_ACCOUNT_KEY'),
             'container_name': self.get_env_or_default('AZURE_CONTAINER', self.AZURE['container_name']),
             'table_name': self.get_env_or_default('AZURE_TABLE', self.AZURE['table_name']),
-            'retry_attempts': self.AZURE['retry_attempts'],
-            'timeout_seconds': self.AZURE['timeout_seconds'],
         }
     
     def print_config_summary(self):

@@ -20,6 +20,43 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="${LOG_DIR}/parallel_pipeline_${TIMESTAMP}.log"
 PID_FILE="${LOG_DIR}/pipeline.pid"
 
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --workers)
+            WORKERS="$2"
+            shift 2
+            ;;
+        --batch-size)
+            BATCH_SIZE="$2"
+            shift 2
+            ;;
+        --azure-interval)
+            AZURE_INTERVAL="$2"
+            shift 2
+            ;;
+        --iterations)
+            ITERATIONS="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --workers N          Number of parallel workers"
+            echo "  --batch-size N       Circuits per batch"
+            echo "  --azure-interval N   Azure upload interval"
+            echo "  --iterations N       Maximum iterations"
+            echo "  --help, -h           Show this help message"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Pipeline parameters (can be overridden via environment variables)
 # Empty defaults mean centralized config values will be used
 WORKERS=${WORKERS:-}  # Auto-detect if not set
