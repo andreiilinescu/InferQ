@@ -22,26 +22,29 @@ import signal
 import multiprocessing as mp
 import numpy as np
 
+# Import centralized configuration
+from config import config, apply_optimizations
+
+# Apply performance optimizations early
+apply_optimizations()
+
 # Suppress numpy array printing to stdout
 np.set_printoptions(suppress=True, threshold=0)
 
-# Configure minimal logging - only warnings and essential messages (BEFORE imports)
-# Create file handler with buffering
+# Configure logging using centralized config
+log_config = config.LOGGING
 file_handler = logging.FileHandler('pipeline.log')
-file_handler.setLevel(logging.WARNING)
+file_handler.setLevel(getattr(logging, log_config['level']))
 
-# Create console handler
 console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.WARNING)
+console_handler.setLevel(getattr(logging, log_config['level']))
 
-# Create formatter
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(log_config['format'])
 file_handler.setFormatter(formatter)
 console_handler.setFormatter(formatter)
 
-# Configure root logger
 logging.basicConfig(
-    level=logging.WARNING,
+    level=getattr(logging, log_config['level']),
     handlers=[file_handler, console_handler]
 )
 

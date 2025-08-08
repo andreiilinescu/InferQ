@@ -17,16 +17,18 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Set
 
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
+from config import get_circuit_config
 from utils.save_utils import save_circuit_locally
 from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
 from simulators.simulation_utils import process_simulation_data_for_features
 from utils.duplicate_detector import is_circuit_duplicate, initialize_duplicate_detection
 
-def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
+def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashes: Set[str] = None) -> dict:
     """
     Run a single pipeline iteration optimized for performance.
     
@@ -45,10 +47,17 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         # Use worker-specific seed for reproducibility
         seed = 42 + seed_offset + worker_id * 1000
         
-        # Initialize components (lightweight initialization)
+        # Get circuit configuration from centralized config
+        circuit_config = get_circuit_config()
+        
+        # Initialize components using centralized configuration
         base_params = BaseParams(
-            max_qubits=8, min_qubits=2, max_depth=1000, min_depth=10, 
-            seed=seed, measure=False
+            max_qubits=circuit_config['max_qubits'], 
+            min_qubits=circuit_config['min_qubits'], 
+            max_depth=circuit_config['max_depth'], 
+            min_depth=circuit_config['min_depth'], 
+            seed=seed, 
+            measure=circuit_config['measure']
         )
         worker_logger.debug(f"Initializing components with seed {seed}")
         circuit_merger = CircuitMerger(base_params=base_params)
@@ -56,7 +65,10 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         
         # Step 1: Generate circuit
         worker_logger.debug("Step 1: Generating circuit...")
-        circuit = circuit_merger.generate_hierarchical_circuit()
+        circuit = circuit_merger.generate_hierarchical_circuit(
+            stopping_probability=circuit_config['stopping_probability'],
+            max_generators=circuit_config['max_generators']
+        )
         worker_logger.info(f"Generated circuit: {circuit.num_qubits} qubits, depth {circuit.depth()}, size {circuit.size()}")
         
         # Step 2: Check for duplicates BEFORE expensive operations
@@ -64,6 +76,13 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         
         # Initialize duplicate detection in worker process (loads from cache)
         initialize_duplicate_detection()
+        
+        # Add existing session hashes from other workers
+        if existing_session_hashes:
+            from utils.duplicate_detector import get_duplicate_detector
+            detector = get_duplicate_detector()
+            detector.add_session_hashes(existing_session_hashes)
+            worker_logger.debug(f"Worker loaded {len(existing_session_hashes)} existing session hashes")
         
         is_duplicate, circuit_hash = is_circuit_duplicate(circuit)
         
@@ -130,6 +149,11 @@ def _setup_worker_logging(worker_id: int) -> logging.Logger:
 
 def _create_duplicate_result(worker_id: int, circuit, circuit_hash: str) -> dict:
     """Create result dictionary for duplicate circuits."""
+    # Get worker's session hashes for batch coordination
+    from utils.duplicate_detector import get_duplicate_detector
+    detector = get_duplicate_detector()
+    worker_session_hashes = detector.get_session_hashes()
+    
     return {
         'success': True,
         'worker_id': worker_id,
@@ -144,12 +168,19 @@ def _create_duplicate_result(worker_id: int, circuit, circuit_hash: str) -> dict
         # No circuit data for upload since it's a duplicate
         'circuit': None,
         'features': {},
-        'serialization_method': None
+        'serialization_method': None,
+        # Include session hashes for batch coordination
+        'worker_session_hashes': worker_session_hashes
     }
 
 def _create_success_result(worker_id: int, circuit, circuit_hash: str,
                           combined_features: dict, saved_features: dict, written: bool) -> dict:
     """Create result dictionary for successful processing."""
+    # Get worker's session hashes for batch coordination
+    from utils.duplicate_detector import get_duplicate_detector
+    detector = get_duplicate_detector()
+    worker_session_hashes = detector.get_session_hashes()
+    
     return {
         'success': True,
         'worker_id': worker_id,
@@ -164,7 +195,9 @@ def _create_success_result(worker_id: int, circuit, circuit_hash: str,
         # Include data for remote upload
         'circuit': circuit,
         'features': saved_features,
-        'serialization_method': saved_features.get('serialization_method', 'qpy')
+        'serialization_method': saved_features.get('serialization_method', 'qpy'),
+        # Include session hashes for batch coordination
+        'worker_session_hashes': worker_session_hashes
     }
 
 def _create_error_result(worker_id: int, error: Exception) -> dict:

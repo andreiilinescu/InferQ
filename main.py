@@ -1,5 +1,6 @@
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
+from config import get_circuit_config, apply_optimizations
 
 from utils.save_utils import (
     save_circuit_locally,
@@ -42,7 +43,10 @@ def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: Quan
     logger.info("STEP 1: Circuit Generation")
     logger.info("-" * 30)
     try:
-        circ = circuitMerger.generate_hierarchical_circuit()
+        circ = circuitMerger.generate_hierarchical_circuit(
+            stopping_probability=circuit_config['stopping_probability'],
+            max_generators=circuit_config['max_generators']
+        )
         logger.info(f"✓ Generated circuit: {circ.num_qubits} qubits, depth {circ.depth()}, size {circ.size()}")
     except Exception as e:
         logger.error(f"Circuit generation failed: {e}")
@@ -139,10 +143,15 @@ def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: Quan
 
 
 def main():
+    # Apply performance optimizations
+    apply_optimizations()
+    
     logger.info("🚀 Starting Quantum Circuit Processing Application")
     logger.info("=" * 80)
     
-    seed = 21384
+    # Get circuit configuration
+    circuit_config = get_circuit_config()
+    seed = circuit_config['seed']
     logger.info(f"Using random seed: {seed}")
     
     # Initialize Azure connection for cloud storage
@@ -155,9 +164,16 @@ def main():
         logger.info("Continuing with local storage only...")
         azure_conn = None
 
-    # Configure circuit generation
+    # Configure circuit generation using centralized config
     logger.info("\nConfiguring Circuit Generation...")
-    base_params = BaseParams(max_qubits=5, min_qubits=1, max_depth=2000, min_depth=1, seed=seed,measure=False)
+    base_params = BaseParams(
+        max_qubits=circuit_config['max_qubits'], 
+        min_qubits=circuit_config['min_qubits'], 
+        max_depth=circuit_config['max_depth'], 
+        min_depth=circuit_config['min_depth'], 
+        seed=seed, 
+        measure=circuit_config['measure']
+    )
     logger.info(f"Circuit parameters: {base_params.min_qubits}-{base_params.max_qubits} qubits, {base_params.min_depth}-{base_params.max_depth} depth")
     
     try:

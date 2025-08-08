@@ -14,6 +14,7 @@ import os
 import json
 import logging
 import hashlib
+import fcntl
 from pathlib import Path
 from typing import Set, Optional
 from datetime import datetime, timezone
@@ -194,6 +195,15 @@ class DuplicateDetector:
         """Clear session hashes (useful for testing or cleanup)."""
         self.session_hashes.clear()
         logger.debug("🧹 Cleared session hashes")
+    
+    def get_session_hashes(self) -> Set[str]:
+        """Get current session hashes."""
+        return self.session_hashes.copy()
+    
+    def add_session_hashes(self, hashes: Set[str]) -> None:
+        """Add multiple hashes to session (for batch coordination)."""
+        self.session_hashes.update(hashes)
+        logger.debug(f"📝 Added {len(hashes)} hashes to session")
     
 
     
@@ -437,6 +447,29 @@ def mark_circuits_upload_failed(circuit_hashes: list[str]) -> None:
     detector = get_duplicate_detector()
     for circuit_hash in circuit_hashes:
         detector.mark_upload_failed(circuit_hash)
+
+def coordinate_batch_session_hashes(worker_session_hashes: list[Set[str]]) -> None:
+    """
+    Coordinate session hashes from multiple workers at the end of a batch.
+    
+    Args:
+        worker_session_hashes: List of session hash sets from each worker
+    """
+    detector = get_duplicate_detector()
+    
+    # Combine all worker session hashes
+    all_new_hashes = set()
+    for worker_hashes in worker_session_hashes:
+        all_new_hashes.update(worker_hashes)
+    
+    if all_new_hashes:
+        detector.add_session_hashes(all_new_hashes)
+        logger.debug(f"🔄 Coordinated {len(all_new_hashes)} new session hashes from {len(worker_session_hashes)} workers")
+
+def get_current_session_hashes() -> Set[str]:
+    """Get current session hashes for worker initialization."""
+    detector = get_duplicate_detector()
+    return detector.get_session_hashes()
 
 
 if __name__ == "__main__":

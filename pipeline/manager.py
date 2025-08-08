@@ -14,12 +14,13 @@ import logging
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 
 from utils.azure_connection import AzureConnection
 from utils.duplicate_detector import (
     initialize_duplicate_detection, get_duplicate_detector,
-    mark_circuits_pending_upload, mark_circuits_uploaded_to_azure, mark_circuits_upload_failed
+    mark_circuits_pending_upload, mark_circuits_uploaded_to_azure, mark_circuits_upload_failed,
+    coordinate_batch_session_hashes, get_current_session_hashes
 )
 from pipeline.worker import run_single_pipeline
 from pipeline.azure_manager import (
@@ -72,6 +73,9 @@ class PipelineManager:
         
         # Upload buffer
         self.upload_buffer: List[Dict[str, Any]] = []
+        
+        # Session coordination
+        self.current_session_hashes: Set[str] = set()
     
     def initialize(self) -> bool:
         """
@@ -175,7 +179,7 @@ class PipelineManager:
         for i in range(batch_size):
             if self.shutdown_flag.value:
                 break
-            future = executor.submit(run_single_pipeline, i % self.num_workers, iteration * batch_size + i)
+            future = executor.submit(run_single_pipeline, i % self.num_workers, iteration * batch_size + i, self.current_session_hashes)
             futures.append(future)
         
         # Process completed work
@@ -196,8 +200,15 @@ class PipelineManager:
         Args:
             batch_results: Results from the current batch
         """
+        # Collect session hashes from all workers for coordination
+        worker_session_hashes = []
+        
         for result in batch_results:
             self.stats['total_processed'] += 1
+            
+            # Collect worker session hashes
+            if 'worker_session_hashes' in result:
+                worker_session_hashes.append(result['worker_session_hashes'])
             
             if result['success']:
                 self.stats['successful'] += 1
@@ -217,6 +228,13 @@ class PipelineManager:
             else:
                 self.stats['failed'] += 1
                 logger.warning(f"Pipeline failed: {result.get('error', 'Unknown error')}")
+        
+        # Coordinate session hashes from all workers
+        if worker_session_hashes:
+            coordinate_batch_session_hashes(worker_session_hashes)
+            # Update current session hashes for next batch
+            self.current_session_hashes = get_current_session_hashes()
+            logger.debug(f"🔄 Updated session hashes: {len(self.current_session_hashes)} total")
     
     def _handle_azure_uploads(self) -> None:
         """Handle Azure uploads when buffer reaches threshold."""
