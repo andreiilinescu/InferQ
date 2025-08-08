@@ -7,17 +7,18 @@ with multiple serialization formats (QPY, pickle, QASM).
 
 from pathlib import Path
 import json
-import hashlib
+import logging
 import qiskit.qpy
 from io import BytesIO
 import pickle
-import logging
+
+from utils.circuit_hash import compute_circuit_hash
 from typing import Dict, Any
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def save_circuit_locally(circuit, features: dict, out_root: Path):
+def save_circuit_locally(circuit, features: dict, out_root: Path, expected_hash: str = None):
     """
     Save a quantum circuit locally with multiple serialization fallbacks.
     
@@ -31,37 +32,23 @@ def save_circuit_locally(circuit, features: dict, out_root: Path):
     raw_bytes = None
     serialization_method = "qpy"
     
-    try:
-        logger.debug("Attempting QPY serialization...")
-        buf = BytesIO()
-        qiskit.qpy.dump(circuit, buf)
-        raw_bytes = buf.getvalue()
-        qpy_success = True
-        logger.debug(f"✓ QPY serialization successful ({len(raw_bytes)} bytes)")
-    except Exception as e:
-        logger.warning(f"QPY serialization failed: {e}")
-        logger.info("Falling back to pickle serialization...")
+    # Use expected hash if provided, otherwise compute it
+    if expected_hash:
+        qpy_hash = expected_hash
+        cid = qpy_hash
+        # Still need to compute for file saving, but use expected hash as ID
+        _, raw_bytes, serialization_method = compute_circuit_hash(circuit)
+        qpy_success = (serialization_method == "qpy")
         
-        # Fallback to pickle serialization
-        try:
-            logger.debug("Attempting pickle serialization...")
-            buf = BytesIO()
-            pickle.dump(circuit, buf)
-            raw_bytes = buf.getvalue()
-            serialization_method = "pickle"
-            logger.debug(f"✓ Pickle serialization successful ({len(raw_bytes)} bytes)")
-        except Exception as pickle_error:
-            logger.error(f"Both QPY and pickle serialization failed: {pickle_error}")
-            logger.info("Using metadata-based fallback...")
-            # Final fallback: create hash from circuit properties
-            circuit_str = f"{circuit.num_qubits}_{circuit.depth()}_{circuit.size()}_{str(circuit.data)}"
-            raw_bytes = circuit_str.encode('utf-8')
-            serialization_method = "metadata"
-            logger.debug(f"✓ Using metadata-based hash ({len(raw_bytes)} bytes)")
-
-    # Calculate hash from the serialized data
-    qpy_hash = hashlib.sha256(raw_bytes).hexdigest()
-    cid = qpy_hash
+        # Log if there's a mismatch
+        computed_hash, _, _ = compute_circuit_hash(circuit)
+        if computed_hash != expected_hash:
+            logger.warning(f"⚠️  Circuit modified during processing: expected {expected_hash[:8]}..., computed {computed_hash[:8]}...")
+    else:
+        # Use centralized circuit hashing
+        qpy_hash, raw_bytes, serialization_method = compute_circuit_hash(circuit)
+        cid = qpy_hash
+        qpy_success = (serialization_method == "qpy")
     dir_ = out_root / cid
     logger.debug(f"Circuit hash: {cid}")
 

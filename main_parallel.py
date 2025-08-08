@@ -135,27 +135,58 @@ def run_single_pipeline(worker_id: int, seed_offset: int) -> dict:
         circuit = circuit_merger.generate_hierarchical_circuit()
         worker_logger.info(f"Generated circuit: {circuit.num_qubits} qubits, depth {circuit.depth()}, size {circuit.size()}")
         
-        # Step 2: Extract features
-        worker_logger.debug("Step 2: Extracting features...")
+        # Step 2: Check for duplicates BEFORE expensive operations
+        worker_logger.debug("Step 2: Checking for duplicates...")
+        from utils.duplicate_detector import is_circuit_duplicate
+        is_duplicate, circuit_hash = is_circuit_duplicate(circuit)
+        
+        if is_duplicate:
+            worker_logger.info(f"🔍 DUPLICATE DETECTED: Circuit {circuit_hash[:8]}... already exists - skipping expensive operations")
+            return {
+                'success': True,
+                'worker_id': worker_id,
+                'circuit_hash': circuit_hash,
+                'circuit_qubits': circuit.num_qubits,
+                'circuit_depth': circuit.depth(),
+                'circuit_size': circuit.size(),
+                'features_count': 0,
+                'written': False,  # Not written because it's a duplicate
+                'duplicate': True,
+                'timestamp': datetime.now().isoformat(),
+                # No circuit data for upload since it's a duplicate
+                'circuit': None,
+                'features': {},
+                'serialization_method': None
+            }
+        
+        worker_logger.info(f"🆕 NEW CIRCUIT: {circuit_hash[:8]}... - proceeding with full processing")
+        
+        # Step 3: Extract features (only for new circuits)
+        worker_logger.debug("Step 3: Extracting features...")
         features = extract_features(circuit=circuit)
         worker_logger.debug(f"Extracted {len(features)} features")
         
-        # Step 3: Run simulations
-        worker_logger.debug("Step 3: Running simulations...")
+        # Step 4: Run simulations (only for new circuits)
+        worker_logger.debug("Step 4: Running simulations...")
         simulation_results = quantum_simulator.simulate_all_methods(circuit)
         successful_sims = sum(1 for r in simulation_results.values() if r.get('success', False))
         worker_logger.info(f"Simulations completed: {successful_sims}/{len(simulation_results)} successful")
         
-        # Step 4: Process simulation data
-        worker_logger.debug("Step 4: Processing simulation data...")
+        # Step 5: Process simulation data
+        worker_logger.debug("Step 5: Processing simulation data...")
         combined_features = process_simulation_data_for_features(simulation_results, features)
         
-        # Step 5: Save locally (prioritize local storage for performance)
-        worker_logger.debug("Step 5: Saving circuit locally...")
+        # Step 6: Save locally (we know it's new, so should save successfully)
+        worker_logger.debug("Step 6: Saving circuit locally...")
         qpy_hash, saved_features, written = save_circuit_locally(
-            circuit, combined_features, Path("./circuits_hpc/")
+            circuit, combined_features, Path("./circuits_hpc/"), expected_hash=circuit_hash
         )
         worker_logger.info(f"Circuit saved: hash={qpy_hash[:8]}..., written={written}")
+        
+        # Verify the hashes match (sanity check)
+        if qpy_hash != circuit_hash:
+            worker_logger.warning(f"⚠️  Hash mismatch: detector={circuit_hash[:8]}..., storage={qpy_hash[:8]}...")
+            worker_logger.warning("⚠️  Circuit may have been modified during processing")
         
         return {
             'success': True,
@@ -329,6 +360,17 @@ def run_parallel_pipeline(num_workers: int = None, max_iterations: int = None,
     logger.warning(f"🚀 Starting parallel pipeline with {num_workers} workers")
     logger.warning(f"System: {mp.cpu_count()} cores, {psutil.virtual_memory().total / (1024**3):.1f}GB RAM")
     
+    # Initialize duplicate detection system
+    logger.warning("🔍 Initializing duplicate detection system...")
+    from utils.duplicate_detector import initialize_duplicate_detection, get_duplicate_detector
+    
+    duplicate_init_success = initialize_duplicate_detection()
+    if duplicate_init_success:
+        detector_stats = get_duplicate_detector().get_stats()
+        logger.warning(f"✅ Duplicate detection ready: {detector_stats['known_hashes_count']} known circuits")
+    else:
+        logger.warning("⚠️  Duplicate detection initialization failed - will check locally only")
+    
     # Initialize Azure connection for remote storage
     azure_conn = None
     try:
@@ -389,7 +431,11 @@ def run_parallel_pipeline(num_workers: int = None, max_iterations: int = None,
                         batch_successful += 1
                         batch_results.append(result)
                         
-                        # Add to upload buffer if Azure is available
+                        # Log duplicate detection results
+                        if result.get('duplicate', False):
+                            logger.debug(f"Worker-{result['worker_id']}: Duplicate circuit skipped")
+                        
+                        # Add to upload buffer if Azure is available and circuit was written (not duplicate)
                         if azure_conn and result.get('written'):
                             upload_buffer.append(result)
                     else:
