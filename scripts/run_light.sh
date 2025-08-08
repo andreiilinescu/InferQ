@@ -13,7 +13,7 @@ source "$SCRIPT_DIR/system_info.sh"
 source "$SCRIPT_DIR/azure_check.sh"
 
 # Configuration
-SCRIPT_NAME="main_parallel_new.py"
+SCRIPT_NAME="main_parallel.py"
 LOG_DIR="logs"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="${LOG_DIR}/light_pipeline_${TIMESTAMP}.log"
