@@ -244,11 +244,14 @@ def upload_batch_to_azure(circuit_batch: list, azure_conn: AzureConnection) -> d
     uploaded = 0
     failed = 0
     
+    # Log the start of Azure upload batch
+    logger.warning(f"🔄 AZURE UPLOAD STARTING: Processing {len(circuit_batch)} circuits for cloud storage")
+    
     try:
         container_client = azure_conn.get_container_client()
         table_client = azure_conn.get_circuits_table_client()
         
-        for result in circuit_batch:
+        for i, result in enumerate(circuit_batch, 1):
             if not result.get('success') or not result.get('written'):
                 continue
                 
@@ -257,6 +260,9 @@ def upload_batch_to_azure(circuit_batch: list, azure_conn: AzureConnection) -> d
                 features = result['features']
                 qpy_hash = result['circuit_hash']
                 serialization_method = result['serialization_method']
+                worker_id = result.get('worker_id', 'unknown')
+                
+                logger.debug(f"☁️  UPLOADING [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... from Worker-{worker_id} ({circuit.num_qubits}q, depth={circuit.depth()})")
                 
                 # Upload to blob storage
                 blob_path = upload_circuit_blob(
@@ -269,16 +275,25 @@ def upload_batch_to_azure(circuit_batch: list, azure_conn: AzureConnection) -> d
                 
                 if table_success:
                     uploaded += 1
+                    logger.debug(f"✅ AZURE SUCCESS [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... uploaded to cloud storage")
                 else:
                     failed += 1
+                    logger.debug(f"❌ AZURE METADATA FAILED [{i}/{len(circuit_batch)}]: Circuit {qpy_hash[:8]}... blob uploaded but metadata failed")
                     
             except Exception as e:
                 failed += 1
-                logger.warning(f"Failed to upload circuit {result.get('circuit_hash', 'unknown')}: {e}")
+                circuit_hash = result.get('circuit_hash', 'unknown')[:8] + '...' if result.get('circuit_hash') else 'unknown'
+                logger.debug(f"❌ AZURE UPLOAD FAILED [{i}/{len(circuit_batch)}]: Circuit {circuit_hash} - {str(e)}")
                 
     except Exception as e:
-        logger.warning(f"Batch upload failed: {e}")
+        logger.warning(f"❌ AZURE BATCH FAILED: Critical error during batch upload - {str(e)}")
         return {'uploaded': 0, 'failed': len(circuit_batch), 'error': str(e)}
+    
+    # Log the completion of Azure upload batch
+    if uploaded > 0:
+        logger.warning(f"🎉 AZURE UPLOAD COMPLETED: {uploaded} circuits successfully stored in cloud, {failed} failed")
+    else:
+        logger.warning(f"⚠️  AZURE UPLOAD COMPLETED: No circuits uploaded, {failed} failed")
     
     return {'uploaded': uploaded, 'failed': failed}
 
@@ -384,16 +399,11 @@ def run_parallel_pipeline(num_workers: int = None, max_iterations: int = None,
                 
                 # Upload to Azure when buffer reaches threshold
                 if azure_conn and len(upload_buffer) >= azure_upload_interval:
-                    logger.warning(f"📤 Uploading {len(upload_buffer)} circuits to Azure...")
+                    logger.warning(f"� AZURaE UPLOAD TRIGGERED: Buffer reached {len(upload_buffer)} circuits (threshold: {azure_upload_interval})")
                     
                     upload_stats = upload_batch_to_azure(upload_buffer, azure_conn)
                     stats['uploaded_to_azure'] += upload_stats['uploaded']
                     stats['upload_failures'] += upload_stats['failed']
-                    
-                    if upload_stats['uploaded'] > 0:
-                        logger.warning(f"✓ Uploaded {upload_stats['uploaded']} circuits to Azure")
-                    if upload_stats['failed'] > 0:
-                        logger.warning(f"⚠️  {upload_stats['failed']} Azure uploads failed")
                     
                     # Clear buffer
                     upload_buffer = []
@@ -438,7 +448,7 @@ def run_parallel_pipeline(num_workers: int = None, max_iterations: int = None,
     finally:
         # Upload remaining circuits in buffer
         if azure_conn and upload_buffer:
-            logger.warning(f"📤 Final upload: {len(upload_buffer)} circuits to Azure...")
+            logger.warning(f"🏁 FINAL AZURE UPLOAD: Processing {len(upload_buffer)} remaining circuits before shutdown")
             upload_stats = upload_batch_to_azure(upload_buffer, azure_conn)
             stats['uploaded_to_azure'] += upload_stats['uploaded']
             stats['upload_failures'] += upload_stats['failed']
