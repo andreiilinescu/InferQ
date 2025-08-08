@@ -1,5 +1,4 @@
 import os
-import pyodbc
 import struct
 from azure import identity
 from dotenv import load_dotenv
@@ -11,7 +10,7 @@ import logging
 load_dotenv()
 
 # Configuration
-sql_connection_string = os.environ.get("AZURE_SQL_CONNECTIONSTRING")  # Optional now
+sql_connection_string = None  # Optional now
 container_connection_string = os.environ["AZURE_CONTAINER_SAS_URL"]
 storage_account_name = os.environ["AZURE_STORAGE_ACCOUNT"]
 sas_token = os.environ["AZURE_STORAGE_SAS_TOKEN"]
@@ -61,6 +60,7 @@ class AzureConnection:
         """Create SQL connection (optional, for backward compatibility)"""
         if not sql_connection_string:
             return None
+        import pyodbc
         sql_conn = pyodbc.connect(sql_connection_string)
         return sql_conn
     
@@ -130,7 +130,7 @@ class AzureConnection:
         
         return table_client
     
-    def get_conn(self) -> pyodbc.Connection:
+    def get_conn(self) :
         """Get SQL connection (optional, for backward compatibility)"""
         return self.sql_conn
     
