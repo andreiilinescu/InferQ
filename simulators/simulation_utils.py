@@ -398,7 +398,7 @@ def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str,
     # Define all simulation methods to track
     simulation_methods = [
         'statevector', 'matrix_product_state', 'unitary', 
-        'density_matrix', 'stabilizer', 'extended_stabilizer'
+        'density_matrix', 'stabilizer', 'extended_stabilizer', 'statevector_saved'
     ]
     
     for method in simulation_methods:
@@ -416,14 +416,16 @@ def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str,
             combined_features[f'{method}_gate_counts'] = gate_counts
             
             # Special handling for statevector entropy
-            if method == 'statevector':
+            if method == 'statevector_saved':
                 statevector_data = simulation_data[method].get('simulation_data', {})
                 if 'entropy' in statevector_data and statevector_data['entropy'] is not None:
-                    combined_features['statevector_entropy'] = statevector_data['entropy']
+                    combined_features['statevector_saved_entropy'] = statevector_data['entropy']
                     logger.info(f"✓ Statevector entropy calculated: {statevector_data['entropy']:.4f}")
                 if "sparsity" in statevector_data and statevector_data["sparsity"] is not None:
-                    combined_features['statevector_sparsity'] = statevector_data['sparsity']
+                    combined_features['statevector_saved_sparsity'] = statevector_data['sparsity']
                     logger.info(f"✓ Statevector sparsity calculated: {statevector_data['sparsity']:.4f}")
+                # if "probablities":
+                #     combined_features["probabilities"]=list(statevector_data["probabilities"])
         else:
             # For failed simulations, set to None
             combined_features[f'{method}_execution_time'] = None
@@ -468,11 +470,12 @@ def extract_essential_simulation_data(results: Dict[str, Dict[str, Any]]) -> Dic
             
             # Only include simulation data for statevector
             data = result.get('data', {})
-            if method == 'statevector' and ('statevector' in data or 'probabilities' in data):
+            if method == 'statevector_saved':
                 essential_result['simulation_data'] = {
                     'statevector': data.get('statevector'),
                     'probabilities': data.get('probabilities'),
-                    'entropy': data.get('entropy')  # Include entropy from simulation
+                    'entropy': data.get('entropy'),  # Include entropy from simulation
+                    'sparsity':data.get("sparsity")
                 }
             elif 'counts' in data:
                 essential_result['simulation_data'] = {

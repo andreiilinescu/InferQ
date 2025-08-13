@@ -179,7 +179,31 @@ class QuantumSimulator:
                     'method': method.value
                 }
         
-        logger.info(f"Simulation summary: {successful_methods} successful, {failed_methods} failed out of {len(SimulationMethod)} methods")
+        # Add additional statevector simulation with save_statevector for entropy/sparsity calculations
+        if SimulationMethod.STATEVECTOR in self.simulators:
+            try:
+                logger.debug("Attempting statevector_saved simulation...")
+                qc.save_statevector()
+                result = self._run_simulation(qc, SimulationMethod.STATEVECTOR, **kwargs)
+                results['statevector_saved'] = result
+                
+                if result.get('success', False):
+                    successful_methods += 1
+                    logger.info("✓ statevector_saved simulation completed successfully")
+                else:
+                    failed_methods += 1
+                    logger.warning(f"✗ statevector_saved simulation failed: {result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                failed_methods += 1
+                logger.warning(f"✗ statevector_saved simulation failed with exception: {e}")
+                results['statevector_saved'] = {
+                    'success': False,
+                    'error': str(e),
+                    'method': 'statevector_saved'
+                }
+        
+        logger.info(f"Simulation summary: {successful_methods} successful, {failed_methods} failed out of {len(SimulationMethod) + 1} methods")
         return results
     
     def _run_simulation(self, qc: QuantumCircuit, method: SimulationMethod, **kwargs) -> Dict[str, Any]:
@@ -284,18 +308,15 @@ class QuantumSimulator:
             # Only extract detailed simulation data for statevector
             if method == SimulationMethod.STATEVECTOR:
                 if 'statevector' in result.data(0):
-                    statevector = result.data(0)['statevector']
-                    probabilities = np.abs(statevector) ** 2
-                    
+                    probabilities = result.get_statevector().probabilities()
                     # Calculate entropy
                     entropy = self._calculate_entropy(probabilities)
                     # Sparsity
                     sparsity = self._calculate_sparsity(probabilities)
                     
-                    data['statevector'] = statevector
-                    data['probabilities'] = probabilities
                     data['entropy'] = entropy
                     data['sparsity'] = sparsity
+                    data['probabilities']=probabilities
             
             # For all other methods, just check if they have counts (if applicable)
             elif hasattr(result, 'get_counts') and qc.num_clbits > 0:
