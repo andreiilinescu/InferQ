@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: QuantumSimulator, azure_conn: AzureConnection = None):
     # Minimal logging for HPC - only essential messages
-    pass
+    circuit_config=get_circuit_config()
+    storage_config=get_storage_config()
     
     # Step 1: Circuit Generation
     logger.info("STEP 1: Circuit Generation")

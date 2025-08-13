@@ -294,6 +294,11 @@ class CircuitMerger:
                 logger.warning(f"✗ Failed to compose {circuit.name}: {e}")
                 continue
 
+        # Handle parameterized circuits by assigning parameters with random values
+        if merged_circuit.parameters:
+            logger.debug(f"Circuit has {len(merged_circuit.parameters)} parameters, assigning random values...")
+            merged_circuit = self._assign_circuit_parameters(merged_circuit)
+        
         logger.info(f"✓ Circuit generation completed: {merged_circuit.num_qubits} qubits, depth {merged_circuit.depth()}, size {merged_circuit.size()}")
         return merged_circuit
 
@@ -495,6 +500,37 @@ class CircuitMerger:
         if selected_name == "GraphState":
             qwalk_mask = gen_names_array == "QuantumWalk"
             current_probs[qwalk_mask] *= 1.7
+
+    def _assign_circuit_parameters(self, circuit: QuantumCircuit) -> QuantumCircuit:
+        """
+        Assign random values to circuit parameters.
+        
+        Args:
+            circuit: Circuit with parameters to assign
+            
+        Returns:
+            Circuit with parameters assigned
+        """
+        try:
+            # Assign parameters with random values between 0 and 2π
+            parameter_values = {param: np.random.uniform(0, 2*np.pi) for param in circuit.parameters}
+            assigned_circuit = circuit.assign_parameters(parameter_values)
+            logger.debug(f"✓ Parameters assigned: {list(parameter_values.keys())}")
+            return assigned_circuit
+        except Exception as param_error:
+            logger.error(f"Parameter assignment failed: {param_error}")
+            # Try to create a new circuit without parameters as fallback
+            try:
+                fallback_circuit = QuantumCircuit(circuit.num_qubits)
+                # Copy non-parameterized gates only
+                for instruction in circuit.data:
+                    if not instruction.operation.params or all(not hasattr(p, 'name') for p in instruction.operation.params):
+                        fallback_circuit.append(instruction.operation, instruction.qubits, instruction.clbits)
+                logger.debug(f"✓ Using fallback circuit without parameters")
+                return fallback_circuit
+            except Exception as fallback_error:
+                logger.error(f"Fallback circuit creation failed: {fallback_error}")
+                raise param_error
 
     def _print_probability_distribution(
         self, current_probs: np.ndarray, step: int

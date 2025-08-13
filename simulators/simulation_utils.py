@@ -421,6 +421,9 @@ def process_simulation_data_for_features(simulation_results: Dict[str, Dict[str,
                 if 'entropy' in statevector_data and statevector_data['entropy'] is not None:
                     combined_features['statevector_entropy'] = statevector_data['entropy']
                     logger.info(f"✓ Statevector entropy calculated: {statevector_data['entropy']:.4f}")
+                if "sparsity" in statevector_data and statevector_data["sparsity"] is not None:
+                    combined_features['statevector_sparsity'] = statevector_data['sparsity']
+                    logger.info(f"✓ Statevector sparsity calculated: {statevector_data['sparsity']:.4f}")
         else:
             # For failed simulations, set to None
             combined_features[f'{method}_execution_time'] = None
