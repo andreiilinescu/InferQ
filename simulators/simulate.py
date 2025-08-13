@@ -312,10 +312,13 @@ class QuantumSimulator:
                     
                     # Calculate entropy
                     entropy = self._calculate_entropy(probabilities)
+                    # Sparsity
+                    sparsity = self._calculate_sparsity(probabilities)
                     
                     data['statevector'] = statevector
                     data['probabilities'] = probabilities
                     data['entropy'] = entropy
+                    data['sparsity'] = sparsity
             
             # For all other methods, just check if they have counts (if applicable)
             elif hasattr(result, 'get_counts') and qc.num_clbits > 0:
@@ -348,6 +351,20 @@ class QuantumSimulator:
         from .simulation_utils import SimulationAnalyzer
         analyzer = SimulationAnalyzer()
         return analyzer._calculate_entropy(probabilities)
+    
+    def _calculate_sparsity(self, probabilities: np.ndarray) -> float:
+        """
+        Calculates sparsity of a probability distribution.
+        
+        Args:
+            probabilities: Array of probabilities
+            
+        Returns:
+            Sparsity value
+        """
+        from .simulation_utils import SimulationAnalyzer
+        analyzer = SimulationAnalyzer()
+        return analyzer._calculate_sparsity(probabilities)
     
     def get_available_methods(self) -> list:
         """
