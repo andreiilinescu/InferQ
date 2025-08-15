@@ -8,6 +8,13 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("Warning: python-dotenv not available, environment variables must be set manually")
+    load_dotenv = None
+
 def test_azure_imports():
     """Test if Azure packages can be imported"""
     print("📦 Testing Azure Package Imports...")
@@ -34,28 +41,40 @@ def test_azure_environment_variables():
     """Test Azure environment variables"""
     print("\n🔑 Testing Azure Environment Variables...")
     
-    # Check for Azure connection string
-    connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-    if connection_string:
-        print("   ✅ AZURE_STORAGE_CONNECTION_STRING is set")
-        # Don't print the actual value for security
-        print(f"   Length: {len(connection_string)} characters")
-        has_connection_string = True
-    else:
-        print("   ⚠️  AZURE_STORAGE_CONNECTION_STRING not set")
-        has_connection_string = False
-    
-    # Check for individual Azure credentials
-    account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+    # Check for Azure storage account and key (your actual configuration)
+    account_name = os.getenv('AZURE_STORAGE_ACCOUNT')
     account_key = os.getenv('AZURE_STORAGE_ACCOUNT_KEY')
     
     if account_name and account_key:
-        print("   ✅ AZURE_STORAGE_ACCOUNT_NAME and AZURE_STORAGE_ACCOUNT_KEY are set")
+        print("   ✅ AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCOUNT_KEY are set")
         print(f"   Account: {account_name}")
-        has_individual_creds = True
+        print(f"   Key length: {len(account_key)} characters")
+        has_account_creds = True
     else:
-        print("   ⚠️  Individual Azure credentials not set")
-        has_individual_creds = False
+        print("   ⚠️  AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCOUNT_KEY not set")
+        has_account_creds = False
+    
+    # Check for SAS token and container URL
+    sas_token = os.getenv('AZURE_STORAGE_SAS_TOKEN')
+    container_url = os.getenv('AZURE_CONTAINER_SAS_URL')
+    
+    if sas_token and container_url:
+        print("   ✅ AZURE_STORAGE_SAS_TOKEN and AZURE_CONTAINER_SAS_URL are set")
+        print(f"   SAS token length: {len(sas_token)} characters")
+        print(f"   Container URL: {container_url.split('?')[0]}...")  # Hide SAS part
+        has_sas_creds = True
+    else:
+        print("   ⚠️  SAS token or container URL not set")
+        has_sas_creds = False
+    
+    # Check for legacy connection string (fallback)
+    connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    if connection_string:
+        print("   ✅ AZURE_STORAGE_CONNECTION_STRING is also set (fallback)")
+        has_connection_string = True
+    else:
+        print("   ⚠️  AZURE_STORAGE_CONNECTION_STRING not set (optional)")
+        has_connection_string = False
     
     # Check for container and table names
     container_name = os.getenv('AZURE_CONTAINER', 'circuits')
@@ -64,13 +83,21 @@ def test_azure_environment_variables():
     print(f"   Container name: {container_name}")
     print(f"   Table name: {table_name}")
     
-    return has_connection_string or has_individual_creds
+    # Return true if we have either account key or SAS credentials
+    return has_account_creds or has_sas_creds
 
 def test_azure_connection():
     """Test actual Azure connection"""
     print("\n🌐 Testing Azure Connection...")
     
     try:
+        # Load environment variables from .env file
+        if load_dotenv:
+            load_dotenv()
+            print("   ✅ Loaded environment variables from .env file")
+        else:
+            print("   ⚠️  dotenv not available, using system environment variables")
+        
         # Import Azure utilities from the project
         sys.path.insert(0, str(Path.cwd()))
         from utils.azure_connection import AzureConnection
