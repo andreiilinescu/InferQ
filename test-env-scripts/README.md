@@ -120,12 +120,16 @@ source .venv/bin/activate
 
 ### Azure Configuration Issues
 ```bash
-# Set Azure connection string
-export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;..."
+# Set Azure storage account and key (recommended)
+export AZURE_STORAGE_ACCOUNT="your_account_name"
+export AZURE_STORAGE_ACCOUNT_KEY="your_account_key"
 
-# Or set individual credentials
-export AZURE_STORAGE_ACCOUNT_NAME="your_account"
-export AZURE_STORAGE_ACCOUNT_KEY="your_key"
+# Or set SAS token and container URL
+export AZURE_STORAGE_SAS_TOKEN="?sp=racwdli&st=..."
+export AZURE_CONTAINER_SAS_URL="https://account.blob.core.windows.net/container?..."
+
+# Optional: Set connection string (fallback)
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;..."
 ```
 
 ### System Resource Issues
