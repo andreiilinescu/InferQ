@@ -98,7 +98,6 @@ dependencies = [
     "pygtrie==2.5.0",
     "pyjwt==2.10.1",
     "pylatexenc>=2.10",
-    "pymongo[srv]>=4.13.2",
     "pyparsing==3.2.3",
     "python-dateutil==2.9.0.post0",
     "python-dotenv==1.1.0",

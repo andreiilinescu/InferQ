@@ -6,8 +6,7 @@ Individual storage modules are organized by functionality:
 
 - local_storage.py: Local filesystem storage
 - table_storage.py: Azure Table Storage
-- blob_storage.py: Azure Blob Storage  
-- sql_storage.py: SQL Database (legacy)
+- blob_storage.py: Azure Blob Storage
 """
 
 # Import all storage functions for backward compatibility
@@ -29,10 +28,7 @@ from .blob_storage import (
     download_circuit_blob
 )
 
-from .sql_storage import (
-    create_circuits_table,
-    save_circuit_metadata
-)
+# Removed SQL storage imports - no longer using SQL database
 
 # Re-export for convenience
 __all__ = [
@@ -51,7 +47,5 @@ __all__ = [
     'upload_circuit_blob',
     'download_circuit_blob',
     
-    # SQL storage (legacy)
-    'create_circuits_table',
-    'save_circuit_metadata'
+    # Removed SQL storage functions - no longer using SQL database
 ]

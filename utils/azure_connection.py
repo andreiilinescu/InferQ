@@ -10,7 +10,6 @@ import logging
 load_dotenv()
 
 # Configuration
-sql_connection_string = None  # Optional now
 container_connection_string = os.environ["AZURE_CONTAINER_SAS_URL"]
 storage_account_name = os.environ["AZURE_STORAGE_ACCOUNT"]
 sas_token = os.environ["AZURE_STORAGE_SAS_TOKEN"]
@@ -35,12 +34,7 @@ def table_safe(name: str) -> str:
         cleaned = f"prop_{cleaned}"
     return cleaned.lower()
 
-def sql_safe(name: str) -> str:
-    """
-    Turn arbitrary feature names into SQL-safe identifiers (kept for backward compatibility).
-    """
-    cleaned = re.sub(r"[^0-9A-Za-z_]", "_", name.strip())
-    return f"[{cleaned.lower()}]"
+# Removed sql_safe function - no longer needed
 
 class AzureConnection:
     def __init__(self):
@@ -51,22 +45,8 @@ class AzureConnection:
         self.container_client = self.create_container_client()
         self.table_service_client = self.create_table_service_client()
         self.circuits_table_client = self.create_circuits_table_client()
-        
-        # SQL connection is optional now
-        self.sql_conn = None
-        if sql_connection_string:
-            try:
-                self.sql_conn = self.create_sql_conn()
-            except Exception as e:
-                logger.warning(f"SQL connection failed: {e}")
 
-    def create_sql_conn(self):
-        """Create SQL connection (optional, for backward compatibility)"""
-        if not sql_connection_string:
-            return None
-        import pyodbc
-        sql_conn = pyodbc.connect(sql_connection_string)
-        return sql_conn
+    # Removed create_sql_conn method - no longer needed
     
     def create_container_client(self) -> ContainerClient:
         """Create blob container client"""
@@ -154,9 +134,7 @@ class AzureConnection:
         
         return table_client
     
-    def get_conn(self) :
-        """Get SQL connection (optional, for backward compatibility)"""
-        return self.sql_conn
+    # Removed get_conn method - no longer needed
     
     def get_container_client(self) -> ContainerClient:
         """Get blob container client"""
