@@ -44,10 +44,14 @@ fi
 source .venv/bin/activate
 
 # Install dependencies
-if [ -f "requirements_hpc.txt" ]; then
+if [ -f "requirements_delftblue_py38.txt" ]; then
+    echo "Installing DelftBlue Python 3.8 compatible dependencies..."
+    pip install --upgrade pip
+    pip install --no-cache-dir -r requirements_delftblue_py38.txt
+elif [ -f "requirements.txt" ]; then
     echo "Installing HPC-optimized dependencies..."
     pip install --upgrade pip
-    pip install -r requirements_hpc.txt
+    pip install -r requirements.txt
 elif [ -f "pyproject.toml" ]; then
     echo "Installing project dependencies..."
     pip install -e .
