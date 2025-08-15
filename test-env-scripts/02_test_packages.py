@@ -12,56 +12,58 @@ from packaging import version
 # Critical packages for the quantum circuit pipeline
 CRITICAL_PACKAGES = {
     'qiskit': {
-        'min_version': '0.45.0',
-        'max_version': '1.0.0',
+        'exact_version': '2.0.1',
         'description': 'Quantum computing framework'
     },
     'qiskit_aer': {
-        'min_version': '0.13.0',
-        'max_version': '0.14.0',
+        'exact_version': '0.17.0',
         'description': 'Qiskit Aer quantum simulator'
     },
     'numpy': {
-        'min_version': '1.20.0',
-        'max_version': '2.0.0',
+        'exact_version': '2.2.5',
         'description': 'Numerical computing'
     },
     'scipy': {
-        'min_version': '1.7.0',
-        'max_version': '1.12.0',
+        'exact_version': '1.15.3',
         'description': 'Scientific computing'
     },
     'pandas': {
-        'min_version': '1.3.0',
-        'max_version': '2.0.0',
+        'exact_version': '2.2.3',
         'description': 'Data manipulation'
     },
     'networkx': {
-        'min_version': '2.6',
-        'max_version': '3.0',
+        'exact_version': '3.4.2',
         'description': 'Graph analysis'
     }
 }
 
 OPTIONAL_PACKAGES = {
     'azure.storage.blob': {
-        'min_version': '12.8.0',
+        'exact_version': '12.25.1',
         'description': 'Azure Blob Storage'
     },
     'azure.data.tables': {
-        'min_version': '12.1.0',
+        'min_version': '12.7.0',
         'description': 'Azure Table Storage'
     },
+    'azure.identity': {
+        'exact_version': '1.23.0',
+        'description': 'Azure Identity'
+    },
+    'azure.core': {
+        'exact_version': '1.34.0',
+        'description': 'Azure Core'
+    },
     'psutil': {
-        'min_version': '5.8.0',
+        'exact_version': '7.0.0',
         'description': 'System monitoring'
     },
     'tqdm': {
-        'min_version': '4.60.0',
+        'exact_version': '4.67.1',
         'description': 'Progress bars'
     },
     'matplotlib': {
-        'min_version': '3.3.0',
+        'min_version': '3.10.3',
         'description': 'Plotting'
     }
 }
@@ -87,7 +89,7 @@ def test_package_import(package_name):
     except ImportError:
         return False
 
-def check_version_compatibility(installed_version, min_version=None, max_version=None):
+def check_version_compatibility(installed_version, min_version=None, max_version=None, exact_version=None):
     """Check if installed version is compatible"""
     if not installed_version:
         return False, "Not installed"
@@ -95,6 +97,15 @@ def check_version_compatibility(installed_version, min_version=None, max_version
     try:
         installed = version.parse(installed_version)
         
+        # Check for exact version match first
+        if exact_version:
+            exact_ver = version.parse(exact_version)
+            if installed == exact_ver:
+                return True, "Exact match"
+            else:
+                return False, f"Version mismatch (need exactly {exact_version}, got {installed_version})"
+        
+        # Check min/max version ranges
         if min_version:
             min_ver = version.parse(min_version)
             if installed < min_ver:
@@ -132,7 +143,8 @@ def test_critical_packages():
             compatible, reason = check_version_compatibility(
                 installed_version,
                 requirements.get('min_version'),
-                requirements.get('max_version')
+                requirements.get('max_version'),
+                requirements.get('exact_version')
             )
             print(f"     Compatibility: {'✅' if compatible else '❌'} {reason}")
         else:
@@ -168,7 +180,8 @@ def test_optional_packages():
             compatible, reason = check_version_compatibility(
                 installed_version,
                 requirements.get('min_version'),
-                requirements.get('max_version')
+                requirements.get('max_version'),
+                requirements.get('exact_version')
             )
             print(f"     Compatibility: {'✅' if compatible else '⚠️'} {reason}")
         else:
