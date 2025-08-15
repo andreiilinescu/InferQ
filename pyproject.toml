@@ -99,7 +99,6 @@ dependencies = [
     "pyjwt==2.10.1",
     "pylatexenc>=2.10",
     "pymongo[srv]>=4.13.2",
-    "pyodbc[srv]>=5.2.0",
     "pyparsing==3.2.3",
     "python-dateutil==2.9.0.post0",
     "python-dotenv==1.1.0",
