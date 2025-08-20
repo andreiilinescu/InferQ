@@ -100,8 +100,6 @@ WORKERS=$(get_optimal_workers "$WORKERS")
 # Check Azure connection
 check_azure_connection
 
-# Set process priority for better performance (if possible)
-optimize_process
 
 # Get config values for display when not overridden
 if [ -z "$WORKERS" ] || [ -z "$BATCH_SIZE" ] || [ -z "$AZURE_INTERVAL" ]; then
@@ -148,8 +146,6 @@ PIPELINE_PID=$!
 # Save PID for monitoring
 echo $PIPELINE_PID > "$PID_FILE"
 
-# Monitor the pipeline
-monitor_pipeline $PIPELINE_PID "$LOG_FILE" "$PID_FILE"
 EXIT_CODE=$?
 
 # Show results

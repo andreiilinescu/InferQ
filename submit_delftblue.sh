@@ -5,21 +5,22 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=180G
+#SBATCH --mem-per-cpu=3690MB
 #SBATCH --account=research-eemcs-qce
 
 # Output and error files
 #SBATCH --output=logs/slurm_%j.out
 #SBATCH --error=logs/slurm_%j.err
 
-# Email notifications (optional - uncomment and set your email)
-# #SBATCH --mail-type=BEGIN,END,FAIL
-# #SBATCH --mail-user=your.email@tudelft.nl
 
 # Load required modules for DelftBlue
-module purge
 module load 2023r1
-module load python/3.11.3
+module load python/3.12.6
+
+# Change to the correct directory (current directory should be the project root)
+echo "Current directory: $(pwd)"
+echo "Directory contents:"
+ls -la
 
 # Print job information
 echo "=========================================="
@@ -43,19 +44,6 @@ fi
 
 source .venv/bin/activate
 
-# Install dependencies
-if [ -f "requirements_delftblue_py38.txt" ]; then
-    echo "Installing DelftBlue Python 3.8 compatible dependencies..."
-    pip install --upgrade pip
-    pip install --no-cache-dir -r requirements_delftblue_py38.txt
-elif [ -f "requirements.txt" ]; then
-    echo "Installing HPC-optimized dependencies..."
-    pip install --upgrade pip
-    pip install -r requirements.txt
-elif [ -f "pyproject.toml" ]; then
-    echo "Installing project dependencies..."
-    pip install -e .
-fi
 
 # Set pipeline configuration for HPC environment
 export WORKERS=$SLURM_CPUS_PER_TASK
@@ -63,17 +51,11 @@ export BATCH_SIZE=${BATCH_SIZE:-100}  # Larger batches for HPC
 export ITERATIONS=${ITERATIONS:-}     # Infinite by default
 export AZURE_INTERVAL=${AZURE_INTERVAL:-1000}  # Less frequent uploads for HPC
 
-# Circuit generation parameters (can be overridden)
-export MAX_QUBITS=${MAX_QUBITS:-5}
-export MIN_QUBITS=${MIN_QUBITS:-1}
-export MAX_DEPTH=${MAX_DEPTH:-2000}
-export SIM_TIMEOUT=${SIM_TIMEOUT:-300}
 
 echo "HPC Pipeline Configuration:"
 echo "  Workers: $WORKERS"
 echo "  Batch Size: $BATCH_SIZE"
 echo "  Max Iterations: ${ITERATIONS:-infinite}"
-echo "  Max Qubits: $MAX_QUBITS"
 echo "  Azure Upload Interval: $AZURE_INTERVAL"
 echo "=========================================="
 

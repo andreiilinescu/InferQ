@@ -73,27 +73,41 @@ detect_system() {
     fi
     
     # Check Python version
+    check_python_version
+    
+    echo ""
+}
+
+# Function to check Python version
+check_python_version() {
     if command_exists python3; then
         PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2)
-        print_info "Python version: $PYTHON_VERSION"
+        print_info "System Python version: $PYTHON_VERSION"
         
         # Check if Python 3.8+
         PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
         PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
         
         if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 8 ]; then
-            print_success "Python version is compatible (3.8+)"
+            print_success "System Python version is compatible (3.8+)"
             PYTHON_OK=true
         else
-            print_error "Python version too old (need 3.8+, got $PYTHON_VERSION)"
+            print_warning "System Python version is old (need 3.8+, got $PYTHON_VERSION)"
             PYTHON_OK=false
         fi
     else
-        print_error "Python3 not found"
+        print_warning "System Python3 not found"
         PYTHON_OK=false
     fi
     
-    echo ""
+    # Check if uv-managed Python is available
+    if command_exists uv && uv python list >/dev/null 2>&1; then
+        UV_PYTHONS=$(uv python list 2>/dev/null | grep -E "python3\.(8|9|10|11|12|13)" | head -1)
+        if [ -n "$UV_PYTHONS" ]; then
+            print_info "UV-managed Python versions available"
+            PYTHON_OK=true
+        fi
+    fi
 }
 
 # Function to load HPC modules if needed
@@ -114,6 +128,53 @@ load_hpc_modules() {
             print_warning "Module system not available"
         fi
         echo ""
+    fi
+}
+
+# Function to install Python with uv
+install_python_with_uv() {
+    print_header "Python Installation with UV"
+    
+    # Check if we need to install Python
+    if [ "$PYTHON_OK" = true ] && [ "$ON_HPC" = true ]; then
+        print_success "Python is available via HPC modules, skipping UV Python installation"
+        return 0
+    fi
+    
+    if [ "$PYTHON_OK" = true ]; then
+        print_info "Compatible Python version found"
+        read -p "Install latest Python with UV anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Using system Python"
+            return 0
+        fi
+    fi
+    
+    print_info "Installing latest Python with UV..."
+    
+    # Install latest stable Python
+    if uv python install; then
+        print_success "Latest Python installed with UV"
+        
+        # Verify installation
+        if uv python list | grep -q "python3"; then
+            LATEST_PYTHON=$(uv python list | grep "python3" | head -1 | awk '{print $1}')
+            print_success "UV Python available: $LATEST_PYTHON"
+            
+            # Test the installation
+            if uv python pin "$LATEST_PYTHON" 2>/dev/null; then
+                print_success "Python pinned for project"
+            fi
+            
+            return 0
+        else
+            print_error "UV Python installation verification failed"
+            return 1
+        fi
+    else
+        print_error "Failed to install Python with UV"
+        return 1
     fi
 }
 
@@ -171,21 +232,71 @@ create_venv() {
         fi
     fi
     
-    # Create virtual environment with uv
-    print_info "Creating virtual environment with uv..."
-    if uv venv .venv; then
-        print_success "Virtual environment created"
-        
-        # Verify activation script exists
-        if [ -f ".venv/bin/activate" ]; then
-            print_success "Activation script ready"
-            return 0
-        else
-            print_error "Activation script not found"
-            return 1
+    # Determine which Python to use
+    PYTHON_CMD=""
+    
+    if [ "$ON_HPC" = true ]; then
+        # On HPC, prefer system Python (loaded via modules)
+        if command_exists python3; then
+            PYTHON_CMD="python3"
+            print_info "Using HPC system Python for virtual environment"
         fi
     else
-        print_error "Failed to create virtual environment"
+        # On local systems, prefer UV-managed Python if available
+        if command_exists uv && uv python list >/dev/null 2>&1; then
+            LATEST_UV_PYTHON=$(uv python list 2>/dev/null | grep "python3" | head -1 | awk '{print $1}')
+            if [ -n "$LATEST_UV_PYTHON" ]; then
+                PYTHON_CMD="$LATEST_UV_PYTHON"
+                print_info "Using UV-managed Python: $LATEST_UV_PYTHON"
+            fi
+        fi
+        
+        # Fallback to system Python
+        if [ -z "$PYTHON_CMD" ] && command_exists python3; then
+            PYTHON_CMD="python3"
+            print_info "Using system Python for virtual environment"
+        fi
+    fi
+    
+    # Create virtual environment with uv
+    print_info "Creating virtual environment with uv..."
+    
+    if [ -n "$PYTHON_CMD" ]; then
+        # Use specific Python version
+        if uv venv .venv --python "$PYTHON_CMD"; then
+            print_success "Virtual environment created with $PYTHON_CMD"
+        else
+            print_warning "Failed with specific Python, trying default..."
+            if uv venv .venv; then
+                print_success "Virtual environment created with default Python"
+            else
+                print_error "Failed to create virtual environment"
+                return 1
+            fi
+        fi
+    else
+        # Use default Python
+        if uv venv .venv; then
+            print_success "Virtual environment created with default Python"
+        else
+            print_error "Failed to create virtual environment"
+            return 1
+        fi
+    fi
+    
+    # Verify activation script exists
+    if [ -f ".venv/bin/activate" ]; then
+        print_success "Activation script ready"
+        
+        # Show Python version in venv
+        if source .venv/bin/activate && python --version >/dev/null 2>&1; then
+            VENV_PYTHON_VERSION=$(source .venv/bin/activate && python --version 2>&1)
+            print_info "Virtual environment Python: $VENV_PYTHON_VERSION"
+        fi
+        
+        return 0
+    else
+        print_error "Activation script not found"
         return 1
     fi
 }
@@ -304,10 +415,32 @@ if [ -d "$HOME/.cargo/bin" ]; then
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
+# Load HPC modules if on DelftBlue
+if [[ $(hostname) == *"delftblue"* ]] || [[ $(hostname) == *"login"* ]]; then
+    if command -v module >/dev/null 2>&1; then
+        echo "Loading HPC modules..."
+        module purge 2>/dev/null || true
+        module load 2023r1 2>/dev/null || true
+        module load python/3.8.12 2>/dev/null || echo "Note: Could not load python/3.8.12"
+    fi
+fi
+
 # Activate virtual environment
 if [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
     echo "✅ Environment activated!"
+    
+    # Show Python version
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_VERSION=$(python --version 2>&1)
+        echo "Python: $PYTHON_VERSION"
+    fi
+    
+    # Show UV version if available
+    if command -v uv >/dev/null 2>&1; then
+        UV_VERSION=$(uv --version 2>&1)
+        echo "UV: $UV_VERSION"
+    fi
 else
     echo "❌ Virtual environment not found. Run ./setup_with_uv.sh first."
     exit 1
@@ -316,10 +449,15 @@ fi
 echo ""
 echo "Available commands:"
 echo "  ./test-env-scripts/run_all_tests.sh  - Run all environment tests"
-echo "  python3 main.py                      - Run single circuit pipeline"
-echo "  python3 main_parallel.py             - Run parallel pipeline"
+echo "  python main.py                       - Run single circuit pipeline"
+echo "  python main_parallel.py              - Run parallel pipeline"
 echo "  sbatch submit_delftblue.sh           - Submit to DelftBlue HPC"
 echo "  ./monitor_slurm.sh                   - Monitor HPC jobs"
+echo ""
+echo "UV commands:"
+echo "  uv python list                       - List available Python versions"
+echo "  uv pip list                          - List installed packages"
+echo "  uv pip install <package>             - Install additional packages"
 echo ""
 echo "To deactivate: deactivate"
 EOF
@@ -385,8 +523,24 @@ show_final_instructions() {
     echo "   ./test-env-scripts/run_all_tests.sh"
     echo ""
     echo "3. Test quantum pipeline:"
-    echo "   python3 main.py"
+    echo "   python main.py"
     echo ""
+    
+    # Show Python information
+    if [ -f ".venv/bin/activate" ]; then
+        VENV_PYTHON=$(source .venv/bin/activate && python --version 2>&1)
+        echo "Environment Python: $VENV_PYTHON"
+        echo ""
+    fi
+    
+    # Show UV Python management commands
+    if command_exists uv; then
+        echo "UV Python Management:"
+        echo "   uv python list                    - List available Python versions"
+        echo "   uv python install 3.12           - Install specific Python version"
+        echo "   uv python pin 3.12               - Pin Python version for project"
+        echo ""
+    fi
     
     if [ "$ON_HPC" = true ]; then
         echo "4. Submit to DelftBlue HPC:"
@@ -423,18 +577,28 @@ main() {
     # Detect system and requirements
     detect_system
     
-    if [ "$PYTHON_OK" != true ]; then
-        print_error "Python requirements not met. Please install Python 3.8+ first."
-        exit 1
-    fi
-    
-    # Load HPC modules if needed
+    # Load HPC modules if needed (this might provide Python)
     load_hpc_modules
+    
+    # Re-check Python after loading modules
+    if [ "$ON_HPC" = true ]; then
+        check_python_version
+    fi
     
     # Install uv
     if ! install_uv; then
         print_error "Failed to install UV package manager"
         exit 1
+    fi
+    
+    # Install Python with uv if needed
+    if ! install_python_with_uv; then
+        if [ "$PYTHON_OK" != true ]; then
+            print_error "Python installation failed and no compatible Python found"
+            exit 1
+        else
+            print_warning "UV Python installation failed, but system Python is available"
+        fi
     fi
     
     # Create virtual environment

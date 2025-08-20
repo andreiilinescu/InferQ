@@ -41,12 +41,12 @@ class PipelineConfig:
     
     # Circuit Generation
     CIRCUIT_GENERATION = {
-        'max_qubits': 5,
+        'max_qubits': 50,
         'min_qubits': 1,
         'max_depth': 2000,
         'min_depth': 1,
         'measure': False,
-        'seed': 21384,
+        'seed': 0,
         'stopping_probability': 0.3,  # Probability to stop adding generators
         'max_generators': 5,  # Maximum generators in hierarchy
     }
@@ -54,7 +54,7 @@ class PipelineConfig:
     # Simulation Configuration
     SIMULATION = {
         'shots': None,  # Exact simulation
-        'seed': 21384,
+        'seed': 0,
         'timeout_seconds': 300,  # 5 minutes per circuit
     }
     
