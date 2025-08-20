@@ -15,7 +15,9 @@
 
 # Load required modules for DelftBlue
 module load 2023r1
-module load python/3.12.6
+module load python/3.12.5
+module load py-pip
+
 
 # Change to the correct directory (current directory should be the project root)
 echo "Current directory: $(pwd)"
@@ -44,6 +46,15 @@ fi
 
 source .venv/bin/activate
 
+
+if [ -f "requirements.txt" ]; then
+    echo "Installing dependencies from requirements ..."
+    pip install --upgrade pip
+    pip install -r requirements.txt
+elif [ -f "pyproject.toml" ]; then
+    echo "Installing dependencies from pyproject..."
+    pip install -e .
+fi
 
 # Set pipeline configuration for HPC environment
 export WORKERS=$SLURM_CPUS_PER_TASK

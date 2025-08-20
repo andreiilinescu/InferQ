@@ -15,6 +15,7 @@
 # Load required modules
 module load 2023r1
 module load python/3.12.6
+module load py-pip
 
 # Print basic job info
 echo "=========================================="
