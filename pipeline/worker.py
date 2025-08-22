@@ -15,6 +15,7 @@ Author: InferQ Pipeline System
 
 import logging
 import sys
+import signal
 from datetime import datetime
 from pathlib import Path
 from typing import Set
@@ -27,6 +28,15 @@ from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
 from simulators.simulation_utils import process_simulation_data_for_features
 from utils.duplicate_detector import is_circuit_duplicate, initialize_duplicate_detection
+
+def setup_worker_signal_handling():
+    """Set up signal handling for worker processes."""
+    def worker_signal_handler(signum, frame):
+        # Worker processes should exit quickly on interrupt
+        sys.exit(1)
+    
+    signal.signal(signal.SIGINT, worker_signal_handler)
+    signal.signal(signal.SIGTERM, worker_signal_handler)
 
 def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashes: Set[str] = None) -> dict:
     """

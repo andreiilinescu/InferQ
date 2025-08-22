@@ -78,6 +78,24 @@ def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
     logger.warning(f"Received signal {signum}, initiating graceful shutdown...")
     shutdown_flag.value = 1
+    # Force exit if signal received multiple times
+    import sys
+    if hasattr(signal_handler, 'call_count'):
+        signal_handler.call_count += 1
+        if signal_handler.call_count > 2:
+            logger.warning("Multiple interrupts received, forcing exit...")
+            sys.exit(1)
+    else:
+        signal_handler.call_count = 1
+    # Force exit if signal received multiple times
+    if hasattr(signal_handler, 'call_count'):
+        signal_handler.call_count += 1
+        if signal_handler.call_count >= 3:
+            logger.error("Multiple interrupts received, forcing exit...")
+            os._exit(1)
+    else:
+        signal_handler.call_count = 1
+
 
 def main():
     """Main entry point with command line argument support."""

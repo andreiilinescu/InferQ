@@ -12,7 +12,7 @@ Author: InferQ Pipeline System
 import time
 import logging
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed, TimeoutError
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Set
 
@@ -22,7 +22,7 @@ from utils.duplicate_detector import (
     mark_circuits_pending_upload, mark_circuits_uploaded_to_azure, mark_circuits_upload_failed,
     coordinate_batch_session_hashes, get_current_session_hashes
 )
-from pipeline.worker import run_single_pipeline
+from pipeline.worker import run_single_pipeline, setup_worker_signal_handling
 from config import get_pipeline_config, get_storage_config
 from pipeline.azure_manager import (
     upload_batch_to_azure, should_trigger_upload, 
@@ -131,31 +131,45 @@ class PipelineManager:
         iteration = 0
         
         try:
-            with ProcessPoolExecutor(max_workers=self.num_workers) as executor:
+            with ProcessPoolExecutor(max_workers=self.num_workers, 
+                                   initializer=setup_worker_signal_handling) as executor:
                 
                 while max_iterations is None or iteration < max_iterations:
                     if self.shutdown_flag.value:
                         logger.warning("Shutdown flag detected, stopping pipeline...")
                         break
                     
-                    # Process a batch of circuits
-                    batch_results = self._process_batch(executor, batch_size, iteration)
-                    
-                    # Update statistics and handle uploads
-                    self._update_stats(batch_results)
-                    self._handle_azure_uploads()
-                    self._handle_cleanup()
-                    
-                    # Log batch status
-                    self._log_batch_status(iteration + 1, batch_results)
-                    
-                    iteration += 1
-                    
-                    # Brief pause to prevent system overload
-                    time.sleep(0.05)
+                    try:
+                        # Process a batch of circuits
+                        batch_results = self._process_batch(executor, batch_size, iteration)
+                        
+                        # Update statistics and handle uploads
+                        self._update_stats(batch_results)
+                        self._handle_azure_uploads()
+                        self._handle_cleanup()
+                        
+                        # Log batch status
+                        self._log_batch_status(iteration + 1, batch_results)
+                        
+                        iteration += 1
+                        
+                        # Brief pause to prevent system overload
+                        time.sleep(0.05)
+                        
+                    except KeyboardInterrupt:
+                        logger.warning("KeyboardInterrupt in batch processing, setting shutdown flag...")
+                        self.shutdown_flag.value = 1
+                        break
+                    except TimeoutError:
+                        logger.warning("Batch processing timed out, continuing...")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Batch processing error: {e}, continuing...")
+                        continue
         
         except KeyboardInterrupt:
             logger.warning("KeyboardInterrupt received, shutting down...")
+            self.shutdown_flag.value = 1
         except Exception as e:
             logger.error(f"Pipeline error: {e}")
         finally:
