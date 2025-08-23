@@ -174,7 +174,7 @@ class QPE(Generator):
             "eigenphase": eigenphase,
         }
 
-        return qc
+        return qc.decompose()
 
     def _create_demo_unitary(self, eigenphase: float, n_sys: int) -> Gate:
         """Create a demo unitary for the given eigenphase."""
@@ -284,3 +284,4 @@ if __name__ == "__main__":  # pragma: no cover
     print(f"Custom circuit: {qpe_circuit_custom.name}")
     print(f"Custom circuit qubits: {qpe_circuit_custom.num_qubits}")
     print(f"Custom circuit depth: {qpe_circuit_custom.depth()}")
+    print(qpe_circuit_custom)
