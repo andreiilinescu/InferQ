@@ -165,7 +165,7 @@ class QFTGenerator(Generator):
                 "measured": self.measure,
             }
 
-        return qc
+        return qc.decompose().decompose()
 
     def generate_parameters(self) -> tuple[int, bool, bool, bool]:
         """
@@ -228,8 +228,11 @@ if __name__ == "__main__":  # pragma: no cover
         min_qubits=args.n,
         max_depth=1,
         min_depth=1,
-        measure=args.measure,
+        measure=False,
+        seed=3
     )
+    random.seed(params.seed)
+    np.random.seed(params.seed)
 
     qft_gen = QFTGenerator(params)
     params = qft_gen.generate_parameters()

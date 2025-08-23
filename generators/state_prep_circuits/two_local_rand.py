@@ -87,7 +87,7 @@ class TwoLocal(Generator):
         if self.measure:
             completed_circuit.measure_all()
 
-        return completed_circuit
+        return completed_circuit.decompose()
 
     def generate_parameters(
         self,
