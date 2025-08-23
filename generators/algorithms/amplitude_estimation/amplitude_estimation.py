@@ -156,7 +156,7 @@ def generate(
         qc.append(controlled_Q, [qr_eval[j], *qr_sys])
 
     # Step 4 ─ inverse QFT on evaluation register
-    qc.append(QFT(m, inverse=True, do_swaps=False, name="QFT†"), qr_eval)
+    qc.append(QFT(m, inverse=True, do_swaps=False, name="QFT†").decompose(), qr_eval)
 
 
     # Metadata

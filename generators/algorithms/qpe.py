@@ -157,7 +157,7 @@ class QPE(Generator):
             inverse=True,
             do_swaps=False,
             name="QFT†~",
-        )
+        ).decompose()
         qc.append(qft_inv, qr_eval)
 
         # 5) Measurement

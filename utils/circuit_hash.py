@@ -71,7 +71,7 @@ def compute_circuit_hash(circuit: QuantumCircuit) -> Tuple[str, bytes, str]:
                 logger.debug(f"✓ Using metadata-based hash ({len(raw_bytes)} bytes)")
         
         # Compute SHA-256 hash
-        hash_obj = hashlib.sha256(raw_bytes)
+        hash_obj = hashlib.sha256(str(circuit).encode("utf-8"))
         hash_string = hash_obj.hexdigest()
         
         logger.debug(f"Circuit hash: {hash_string[:8]}... (method: {serialization_method})")

@@ -17,6 +17,10 @@ from generators.lib.parameters import (
     qnn_ansatz_type,
     qnn_reps,
 )
+from hashlib import sha256
+import random
+import numpy as np
+from utils.circuit_hash import compute_circuit_hash_simple
 
 """Quantum Neural Network (QNN) circuit generator
 ===============================================
@@ -98,14 +102,14 @@ class QNN(Generator):
         qc.name = name or f"QNN({num_qubits}q,{feature_map_type},{ansatz_type})"
 
         # Create feature map
-        feature_map = self._create_feature_map(feature_map_type, num_qubits)
+        feature_map = self._create_feature_map(feature_map_type, num_qubits).decompose()
         qc.compose(feature_map, inplace=True)
 
         # Add barrier for visual separation
         qc.barrier()
 
         # Create ansatz
-        ansatz = self._create_ansatz(ansatz_type, num_qubits, reps_num, entanglement)
+        ansatz = self._create_ansatz(ansatz_type, num_qubits, reps_num, entanglement).decompose()
         qc.compose(ansatz, inplace=True)
 
         # Add measurements if requested
@@ -124,7 +128,7 @@ class QNN(Generator):
             "measured": self.measure,
         }
 
-        return qc
+        return qc.decompose()
 
     def _create_feature_map(self, feature_map_type: str, num_qubits: int):
         """Create the specified feature map."""
@@ -237,6 +241,8 @@ if __name__ == "__main__":  # pragma: no cover
         measure=args.measure,
         seed=42,
     )
+    random.seed(params.seed)
+    np.random.seed(params.seed)
 
     qnn_gen = QNN(params)
     params = qnn_gen.generate_parameters()
@@ -247,3 +253,5 @@ if __name__ == "__main__":  # pragma: no cover
     print(
         f"Parameters: n={params['num_qubits']}, feature_map={params['feature_map_type']}, ansatz={params['ansatz_type']}, reps={params['reps_num']}"
     )
+   
+    print(compute_circuit_hash_simple(qc_class))
