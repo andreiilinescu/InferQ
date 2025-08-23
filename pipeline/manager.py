@@ -44,13 +44,14 @@ class PipelineManager:
     and overall pipeline execution.
     """
     
-    def __init__(self, num_workers: Optional[int] = None, azure_upload_interval: int = 100):
+    def __init__(self, num_workers: Optional[int] = None, azure_upload_interval: int = 100, batch_timeout_seconds: Optional[int] = None):
         """
         Initialize the pipeline manager.
         
         Args:
             num_workers: Number of parallel workers (default: CPU count - 2)
             azure_upload_interval: Upload to Azure every N circuits
+            batch_timeout_seconds: Timeout for individual worker tasks (default: from config)
         """
         # Set optimal worker count
         if num_workers is None:
@@ -58,6 +59,13 @@ class PipelineManager:
         
         self.num_workers = num_workers
         self.azure_upload_interval = azure_upload_interval
+        
+        # Get batch timeout from config if not provided
+        if batch_timeout_seconds is None:
+            pipeline_config = get_pipeline_config()
+            batch_timeout_seconds = pipeline_config['batch_timeout_seconds']
+        self.batch_timeout_seconds = batch_timeout_seconds
+        
         self.azure_conn: Optional[AzureConnection] = None
         self.shutdown_flag = mp.Value('i', 0)
         
@@ -66,6 +74,7 @@ class PipelineManager:
             'total_processed': 0,
             'successful': 0,
             'failed': 0,
+            'timed_out': 0,  # Track timeouts
             'uploaded_to_azure': 0,
             'upload_failures': 0,
             'start_time': time.time(),
@@ -88,6 +97,7 @@ class PipelineManager:
         try:
             # Log system startup
             log_system_startup(self.num_workers)
+            logger.warning(f"⏱️  Batch timeout: {self.batch_timeout_seconds}s")
             
             # Initialize Azure connection ONCE for both duplicate detection and uploads (if enabled)
             from config import get_azure_config
@@ -206,14 +216,46 @@ class PipelineManager:
             future = executor.submit(run_single_pipeline, i % self.num_workers, iteration * batch_size + i, self.current_session_hashes)
             futures.append(future)
         
-        # Process completed work
+        # Process completed work with timeout
         batch_results = []
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=self.batch_timeout_seconds):
             if self.shutdown_flag.value:
                 break
             
-            result = future.result()
-            batch_results.append(result)
+            try:
+                result = future.result(timeout=1)  # Quick timeout since future is already done
+                batch_results.append(result)
+            except TimeoutError:
+                # This shouldn't happen since we're using as_completed with timeout
+                logger.warning("Individual future timed out unexpectedly")
+                batch_results.append({
+                    'success': False,
+                    'worker_id': -1,
+                    'error': 'Worker task timed out',
+                    'timeout': True,
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.warning(f"Future result error: {e}")
+                batch_results.append({
+                    'success': False,
+                    'worker_id': -1,
+                    'error': f'Future error: {str(e)}',
+                    'timestamp': time.time()
+                })
+        
+        # Handle any remaining futures that didn't complete within timeout
+        for future in futures:
+            if not future.done():
+                future.cancel()
+                logger.warning("Cancelled incomplete worker task due to timeout")
+                batch_results.append({
+                    'success': False,
+                    'worker_id': -1,
+                    'error': f'Worker task timed out after {self.batch_timeout_seconds}s',
+                    'timeout': True,
+                    'timestamp': time.time()
+                })
         
         return batch_results
     
@@ -250,8 +292,12 @@ class PipelineManager:
                         mark_circuits_pending_upload([circuit_hash])
                         logger.debug(f"📤 Marked {circuit_hash[:8]}... as pending upload")
             else:
-                self.stats['failed'] += 1
-                logger.warning(f"Pipeline failed: {result.get('error', 'Unknown error')}")
+                if result.get('timeout', False):
+                    self.stats['timed_out'] += 1
+                    logger.warning(f"Worker task timed out: {result.get('error', 'Unknown timeout')}")
+                else:
+                    self.stats['failed'] += 1
+                    logger.warning(f"Pipeline failed: {result.get('error', 'Unknown error')}")
         
         # Coordinate session hashes from all workers
         if worker_session_hashes:
@@ -359,6 +405,7 @@ class PipelineManager:
         logger.warning(f"Total processed: {self.stats['total_processed']}")
         logger.warning(f"Successful: {self.stats['successful']}")
         logger.warning(f"Failed: {self.stats['failed']}")
+        logger.warning(f"Timed out: {self.stats['timed_out']}")
         if self.stats['total_processed'] > 0:
             logger.warning(f"Success rate: {self.stats['successful']/self.stats['total_processed']*100:.1f}%")
         if self.azure_conn:
@@ -384,7 +431,8 @@ class PipelineManager:
 
 
 def run_parallel_pipeline(num_workers: Optional[int] = None, max_iterations: Optional[int] = None, 
-                         batch_size: Optional[int] = None, azure_upload_interval: Optional[int] = None) -> Dict[str, Any]:
+                         batch_size: Optional[int] = None, azure_upload_interval: Optional[int] = None,
+                         batch_timeout_seconds: Optional[int] = None) -> Dict[str, Any]:
     """
     Run the parallel pipeline with the specified parameters.
     
@@ -393,6 +441,7 @@ def run_parallel_pipeline(num_workers: Optional[int] = None, max_iterations: Opt
         max_iterations: Maximum iterations (default: from config)
         batch_size: Circuits per batch before status update (default: from config)
         azure_upload_interval: Upload to Azure every N circuits (default: from config)
+        batch_timeout_seconds: Timeout for individual worker tasks (default: from config)
         
     Returns:
         Dictionary with final pipeline statistics
@@ -405,8 +454,14 @@ def run_parallel_pipeline(num_workers: Optional[int] = None, max_iterations: Opt
     max_iterations = max_iterations or pipeline_config['max_iterations']
     batch_size = batch_size or pipeline_config['batch_size']
     azure_upload_interval = azure_upload_interval or pipeline_config['azure_upload_interval']
+    batch_timeout_seconds = batch_timeout_seconds or pipeline_config['batch_timeout_seconds']
+    
     # Create and initialize pipeline manager
-    manager = PipelineManager(num_workers=num_workers, azure_upload_interval=azure_upload_interval)
+    manager = PipelineManager(
+        num_workers=num_workers, 
+        azure_upload_interval=azure_upload_interval,
+        batch_timeout_seconds=batch_timeout_seconds
+    )
     
     if not manager.initialize():
         logger.error("❌ Failed to initialize pipeline manager")

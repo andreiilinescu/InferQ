@@ -37,6 +37,7 @@ class PipelineConfig:
         'batch_size': 10,
         'azure_upload_interval': 10,
         'max_iterations': None,  # Infinite
+        'batch_timeout_seconds': 200,  # 5 minutes timeout per worker task
     }
     
     # Circuit Generation
@@ -113,6 +114,7 @@ class PipelineConfig:
             'batch_size': self.get_env_or_default('BATCH_SIZE', self.PIPELINE_DEFAULTS['batch_size'], int),
             'azure_upload_interval': self.get_env_or_default('AZURE_INTERVAL', self.PIPELINE_DEFAULTS['azure_upload_interval'], int),
             'max_iterations': self.get_env_or_default('ITERATIONS', self.PIPELINE_DEFAULTS['max_iterations'], int),
+            'batch_timeout_seconds': self.get_env_or_default('BATCH_TIMEOUT', self.PIPELINE_DEFAULTS['batch_timeout_seconds'], int),
         }
     
     def get_circuit_config(self):
@@ -202,6 +204,7 @@ class PipelineConfig:
         print(f"Batch size: {pipeline_config['batch_size']}")
         print(f"Azure interval: {pipeline_config['azure_upload_interval']}")
         print(f"Max iterations: {pipeline_config['max_iterations'] or 'Infinite'}")
+        print(f"Batch timeout: {pipeline_config['batch_timeout_seconds']}s")
         print()
         print(f"Circuit qubits: {circuit_config['min_qubits']}-{circuit_config['max_qubits']}")
         print(f"Circuit depth: {circuit_config['min_depth']}-{circuit_config['max_depth']}")
