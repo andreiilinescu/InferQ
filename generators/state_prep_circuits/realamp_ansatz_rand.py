@@ -2,8 +2,9 @@ from qiskit.circuit.library import RealAmplitudes as QiskitRealAmplitudes
 from qiskit.circuit import QuantumCircuit
 from generators.lib.generator import Generator, BaseParams
 from generators.lib.parameters import num_qbits, depth, random_parameter_values
-
-
+from utils.circuit_hash import compute_circuit_hash_simple
+import random
+import numpy as np
 class RealAmplitudes(Generator):
     """
     Class to generate a RealAmplitudes ansatz circuit with random parameters.
@@ -47,15 +48,14 @@ class RealAmplitudes(Generator):
                 f"but got {len(parameter_values)} values."
             )
             return None
-
         # Assign the numerical values to the parameters
-        completed_circuit = ansatz_circuit.assign_parameters(parameter_values)
-        completed_circuit.name = f"RealAmplitudes({num_qubits}q,{circuit_depth}d)"
+        ansatz_circuit.assign_parameters(parameter_values,inplace=True)
+        ansatz_circuit.name = f"RealAmplitudes({num_qubits}q,{circuit_depth}d)"
 
         if self.measure:
-            completed_circuit.measure_all()
+            ansatz_circuit.measure_all()
 
-        return completed_circuit
+        return ansatz_circuit.decompose()
 
     def generate_parameters(self) -> tuple[int, int, list[float]]:
         """
@@ -83,7 +83,6 @@ class RealAmplitudes(Generator):
         self.parameter_values = random_parameter_values(
             num_params, seed=self.base_params.seed
         )
-
         self.measure = self.base_params.measure
 
         return self.num_qubits, self.circuit_depth, self.parameter_values
@@ -92,9 +91,10 @@ class RealAmplitudes(Generator):
 if __name__ == "__main__":
     # Example usage
     params = BaseParams(
-        max_qubits=5, min_qubits=2, max_depth=3, min_depth=1, measure=False
+        max_qubits=5, min_qubits=2, max_depth=3, min_depth=1, measure=False,seed=2
     )
-
+    random.seed(params.seed)
+    np.random.seed(params.seed)
     real_amplitudes_generator = RealAmplitudes(params)
     num_qubits, circuit_depth, parameter_values = (
         real_amplitudes_generator.generate_parameters()

@@ -123,9 +123,8 @@ class TwoLocal(Generator):
         entanglement_options = [["cx"], ["cz"], ["cy"]]
         entanglement_patterns = ["full", "linear", "circular"]
 
-        if self.base_params.seed is not None:
-            random.seed(self.base_params.seed)
-
+        # Use current random state set by CircuitMerger instead of resetting seed
+        # This ensures reproducibility while maintaining proper random sequence
         self.rotation_blocks = random.choice(rotation_options)
         self.entanglement_blocks = random.choice(entanglement_options)
         self.entanglement = random.choice(entanglement_patterns)
