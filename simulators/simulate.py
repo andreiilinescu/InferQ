@@ -143,7 +143,7 @@ class QuantumSimulator:
     
     def simulate_all_methods(self, qc: QuantumCircuit, **kwargs) -> Dict[str, Dict[str, Any]]:
         """
-        Simulate the circuit using all available methods.
+        Simulate the circuit using all available methods with size limits.
         
         Args:
             qc: Quantum circuit to simulate
@@ -157,8 +157,47 @@ class QuantumSimulator:
         successful_methods = 0
         failed_methods = 0
         
+        # Get simulation limits from config
+        from config import get_simulation_config
+        sim_config = get_simulation_config()
+        max_qubits_statevector = sim_config.get('max_qubits_statevector', 20)
+        max_qubits_unitary = sim_config.get('max_qubits_unitary', 12)
+        max_qubits_mps = sim_config.get('max_qubits_mps', 30)
+        max_circuit_size = sim_config.get('max_circuit_size', 1000)
+        
+        # Check overall circuit complexity
+        if qc.size() > max_circuit_size:
+            logger.warning(f"Circuit too complex for simulation: {qc.size()} gates > {max_circuit_size} limit")
+            # Return failed results for all methods
+            failed_result = {
+                'success': False,
+                'error': f"Circuit too complex: {qc.size()} gates exceeds simulation limit of {max_circuit_size}",
+                'skipped': True
+            }
+            return {method.value: {**failed_result, 'method': method.value} for method in SimulationMethod}
+        
         for method in SimulationMethod:
             try:
+                # Check qubit limits before attempting simulation
+                skip_reason = None
+                if method == SimulationMethod.STATEVECTOR and qc.num_qubits > max_qubits_statevector:
+                    skip_reason = f"Circuit has {qc.num_qubits} qubits, exceeds statevector limit of {max_qubits_statevector}"
+                elif method in [SimulationMethod.UNITARY, SimulationMethod.DENSITY_MATRIX] and qc.num_qubits > max_qubits_unitary:
+                    skip_reason = f"Circuit has {qc.num_qubits} qubits, exceeds {method.value} limit of {max_qubits_unitary}"
+                elif method == SimulationMethod.MPS and qc.num_qubits > max_qubits_mps:
+                    skip_reason = f"Circuit has {qc.num_qubits} qubits, exceeds MPS limit of {max_qubits_mps}"
+                
+                if skip_reason:
+                    failed_methods += 1
+                    logger.warning(f"✗ {method.value} simulation skipped: {skip_reason}")
+                    results[method.value] = {
+                        'success': False,
+                        'error': skip_reason,
+                        'method': method.value,
+                        'skipped': True
+                    }
+                    continue
+                
                 logger.debug(f"Attempting {method.value} simulation...")
                 result = self._run_simulation(qc, method, **kwargs)
                 results[method.value] = result
@@ -180,11 +219,12 @@ class QuantumSimulator:
                 }
         
         # Add additional statevector simulation with save_statevector for entropy/sparsity calculations
-        if SimulationMethod.STATEVECTOR in self.simulators:
+        if SimulationMethod.STATEVECTOR in self.simulators and qc.num_qubits <= max_qubits_statevector:
             try:
                 logger.debug("Attempting statevector_saved simulation...")
-                qc.save_statevector()
-                result = self._run_simulation(qc, SimulationMethod.STATEVECTOR, **kwargs)
+                qc_copy = qc.copy()  # Don't modify original circuit
+                qc_copy.save_statevector()
+                result = self._run_simulation(qc_copy, SimulationMethod.STATEVECTOR, **kwargs)
                 results['statevector_saved'] = result
                 
                 if result.get('success', False):
@@ -202,6 +242,14 @@ class QuantumSimulator:
                     'error': str(e),
                     'method': 'statevector_saved'
                 }
+        elif qc.num_qubits > max_qubits_statevector:
+            failed_methods += 1
+            results['statevector_saved'] = {
+                'success': False,
+                'error': f"Circuit has {qc.num_qubits} qubits, exceeds statevector limit of {max_qubits_statevector}",
+                'method': 'statevector_saved',
+                'skipped': True
+            }
         
         logger.info(f"Simulation summary: {successful_methods} successful, {failed_methods} failed out of {len(SimulationMethod) + 1} methods")
         return results
@@ -230,15 +278,34 @@ class QuantumSimulator:
             transpiled_qc = transpile(circuit_to_simulate, simulator)
             logger.debug(f"✓ Circuit transpiled: depth {transpiled_qc.depth()}, size {transpiled_qc.size()}")
             
-            # Run the simulation with timing
+            # Run the simulation with timing and timeout handling
             logger.debug(f"Executing {method.value} simulation...")
             import time
+            
             start_time = time.time()
-            job = simulator.run(transpiled_qc, **kwargs)
-            result = job.result(timeout=self.timeout_seconds)
-            end_time = time.time()
-            measured_execution_time = end_time - start_time
-            logger.debug(f"✓ {method.value} simulation job completed in {measured_execution_time:.4f}s")
+            
+            try:
+                # Run simulation with job-level timeout
+                job = simulator.run(transpiled_qc, **kwargs)
+                result = job.result(timeout=self.timeout_seconds)
+                end_time = time.time()
+                measured_execution_time = end_time - start_time
+                logger.debug(f"✓ {method.value} simulation job completed in {measured_execution_time:.4f}s")
+            except Exception as timeout_error:
+                end_time = time.time()
+                measured_execution_time = end_time - start_time
+                if "timeout" in str(timeout_error).lower() or measured_execution_time >= self.timeout_seconds:
+                    timeout_msg = f"Simulation timed out after {measured_execution_time:.1f}s (limit: {self.timeout_seconds}s)"
+                    logger.warning(f"✗ {method.value} {timeout_msg}")
+                    return {
+                        'success': False,
+                        'method': method.value,
+                        'error': timeout_msg,
+                        'execution_time': measured_execution_time
+                    }
+                else:
+                    # Re-raise non-timeout errors
+                    raise timeout_error
             
             # Extract relevant information based on method
             logger.debug(f"Extracting simulation data for {method.value}...")
