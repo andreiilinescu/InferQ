@@ -85,7 +85,8 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
             max_generators=circuit_config['max_generators']
         )
         worker_logger.info(f"Generated circuit: {circuit.num_qubits} qubits, depth {circuit.depth()}, size {circuit.size()}")
-        
+        if(circuit.size()>circuit_config["max_circuit_size"]):
+            return _create_error_result(worker_id, Exception("Circuit too complex..."))
         # Step 2: Check for duplicates BEFORE expensive operations
         worker_logger.debug("Step 2: Checking for duplicates...")
         

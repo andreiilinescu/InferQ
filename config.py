@@ -33,29 +33,34 @@ class PipelineConfig:
     
     # Pipeline Defaults
     PIPELINE_DEFAULTS = {
-        'workers': None,  # Auto-detect
-        'batch_size': 2,
-        'azure_upload_interval': 2,
+        'workers': 5,  # Auto-detect
+        'batch_size': 10,
+        'azure_upload_interval': 10,
         'max_iterations': None,  # Infinite
     }
     
     # Circuit Generation
     CIRCUIT_GENERATION = {
-        'max_qubits': 50,
+        'max_qubits': 20,  # Further reduced for faster processing
         'min_qubits': 1,
-        'max_depth': 2000,
+        'max_depth': 100,  # Reduced depth limit
         'min_depth': 1,
         'measure': False,
-        'seed': 0,
-        'stopping_probability': 0.3,  # Probability to stop adding generators
-        'max_generators': 5,  # Maximum generators in hierarchy
+        'seed': 5000000,
+        'stopping_probability': 0.5,  # Higher probability to stop (shorter circuits)
+        'max_generators': 3,  # Fewer generators for simpler circuits
+        'max_circuit_size': 1000,  # Maximum total gates
     }
     
     # Simulation Configuration
     SIMULATION = {
         'shots': None,  # Exact simulation
-        'seed': 0,
-        'timeout_seconds': 300,  # 5 minutes per circuit
+        'seed': 5000000,
+        'timeout_seconds': 30,  # 30 seconds per circuit (very aggressive)
+        'max_qubits_statevector': 20,  # Conservative limit for statevector
+        'max_qubits_unitary': 12,  # Conservative limit for unitary/density matrix
+        'max_qubits_mps': 30,  # Conservative limit for MPS
+        'max_circuit_size': 1000,  # Skip circuits with too many gates
     }
     
     # Storage Configuration
@@ -119,6 +124,7 @@ class PipelineConfig:
             'seed': self.get_env_or_default('SEED', self.CIRCUIT_GENERATION['seed'], int),
             'stopping_probability': self.get_env_or_default('STOPPING_PROB', self.CIRCUIT_GENERATION['stopping_probability'], float),
             'max_generators': self.get_env_or_default('MAX_GENERATORS', self.CIRCUIT_GENERATION['max_generators'], int),
+            'max_circuit_size': self.get_env_or_default('MAX_CIRCUIT_SIZE', self.CIRCUIT_GENERATION['max_circuit_size'], int),
         }
     
     def get_simulation_config(self):

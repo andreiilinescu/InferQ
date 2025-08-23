@@ -139,7 +139,7 @@ python3 "$SCRIPT_NAME" \
     ${ITERATIONS:+--iterations "$ITERATIONS"} \
     ${BATCH_SIZE:+--batch-size "$BATCH_SIZE"} \
     ${AZURE_INTERVAL:+--azure-interval "$AZURE_INTERVAL"} \
-    2>&1 | tee "$LOG_FILE" &
+    2>&1 | tee "$LOG_FILE" 
 
 PIPELINE_PID=$!
 
