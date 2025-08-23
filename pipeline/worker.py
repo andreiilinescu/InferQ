@@ -125,8 +125,11 @@ def run_single_pipeline(worker_id: int, seed_offset: int, existing_session_hashe
         
         # Step 6: Save locally (we know it's new, so should save successfully)
         worker_logger.debug("Step 6: Saving circuit locally...")
+        storage_path = Path(storage_config['local_circuits_dir'])
+        storage_path.mkdir(parents=True, exist_ok=True)
+        
         saved_hash, saved_features, written = save_circuit_locally(
-            circuit, combined_features, Path(f"./{storage_config['local_circuits_dir']}/"), expected_hash=circuit_hash
+            circuit, combined_features, storage_path, expected_hash=circuit_hash
         )
         worker_logger.info(f"Circuit saved: hash={saved_hash[:8]}..., written={written}")
         

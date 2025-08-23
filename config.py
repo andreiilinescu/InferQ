@@ -41,31 +41,32 @@ class PipelineConfig:
     
     # Circuit Generation
     CIRCUIT_GENERATION = {
-        'max_qubits': 20,  # Further reduced for faster processing
+        'max_qubits': 30,  # Further reduced for faster processing
         'min_qubits': 1,
-        'max_depth': 100,  # Reduced depth limit
+        'max_depth': 200,  # Reduced depth limit
         'min_depth': 1,
         'measure': False,
         'seed': 5000000,
-        'stopping_probability': 0.5,  # Higher probability to stop (shorter circuits)
-        'max_generators': 3,  # Fewer generators for simpler circuits
-        'max_circuit_size': 1000,  # Maximum total gates
+        'stopping_probability': 0.3,  # Higher probability to stop (shorter circuits)
+        'max_generators': 5,  # Fewer generators for simpler circuits
+        'max_circuit_size': 1500,  # Maximum total gates
     }
     
     # Simulation Configuration
     SIMULATION = {
         'shots': None,  # Exact simulation
         'seed': 5000000,
-        'timeout_seconds': 30,  # 30 seconds per circuit (very aggressive)
-        'max_qubits_statevector': 20,  # Conservative limit for statevector
-        'max_qubits_unitary': 12,  # Conservative limit for unitary/density matrix
-        'max_qubits_mps': 30,  # Conservative limit for MPS
+        'timeout_seconds': 60,  
+        'max_qubits_statevector': 30,  # Conservative limit for statevector
+        'max_qubits_unitary': 25,  # Conservative limit for unitary/density matrix
+        'max_qubits_mps': 35,  
         'max_circuit_size': 1000,  # Skip circuits with too many gates
     }
     
     # Storage Configuration
     STORAGE = {
         'local_circuits_dir': 'circuits',
+        'absolute_storage_path': "/Users/andilin/Uni/data",  # If set, use this as base path instead of project root
         'cache_file': 'circuit_hashes_cache.json',
         'max_local_storage_gb': 50,
     }
@@ -74,6 +75,7 @@ class PipelineConfig:
     AZURE = {
         'container_name': 'circuits',
         'table_name': 'circuits',
+        'enabled': False,  # Disable Azure by default for local-only operation
     }
     
     # Logging Configuration
@@ -137,8 +139,18 @@ class PipelineConfig:
     
     def get_storage_config(self):
         """Get storage configuration."""
+        absolute_path = self.get_env_or_default('ABSOLUTE_STORAGE_PATH', self.STORAGE['absolute_storage_path'])
+        local_circuits_dir = self.get_env_or_default('LOCAL_CIRCUITS_DIR', self.STORAGE['local_circuits_dir'])
+        
+        # If absolute path is specified, use it as base for circuits directory
+        if absolute_path:
+            circuits_path = Path(absolute_path) / local_circuits_dir
+        else:
+            circuits_path = Path(local_circuits_dir)
+            
         return {
-            'local_circuits_dir': self.get_env_or_default('LOCAL_CIRCUITS_DIR', self.STORAGE['local_circuits_dir']),
+            'local_circuits_dir': str(circuits_path),
+            'absolute_storage_path': absolute_path,
             'cache_file': self.get_env_or_default('CACHE_FILE', self.STORAGE['cache_file']),
             'max_local_storage_gb': self.get_env_or_default('MAX_STORAGE_GB', self.STORAGE['max_local_storage_gb'], int),
         }
@@ -168,6 +180,7 @@ class PipelineConfig:
     def get_azure_config(self):
         """Get Azure configuration."""
         return {
+            'enabled': self.get_env_or_default('AZURE_ENABLED', self.AZURE['enabled'], bool),
             'connection_string': self.get_env_or_default('AZURE_STORAGE_CONNECTION_STRING'),
             'account_name': self.get_env_or_default('AZURE_STORAGE_ACCOUNT_NAME'),
             'account_key': self.get_env_or_default('AZURE_STORAGE_ACCOUNT_KEY'),
@@ -201,9 +214,11 @@ class PipelineConfig:
         print(f"Simulation timeout: {simulation_config['timeout_seconds']}s")
         print()
         print(f"Local circuits dir: {storage_config['local_circuits_dir']}")
+        print(f"Absolute storage path: {storage_config['absolute_storage_path'] or 'Not set (using relative path)'}")
         print(f"Cache file: {storage_config['cache_file']}")
         print(f"Max storage: {storage_config['max_local_storage_gb']}GB")
         print()
+        print(f"Azure enabled: {azure_config['enabled']}")
         print(f"Azure container: {azure_config['container_name']}")
         print(f"Azure table: {azure_config['table_name']}")
         print("=" * 50)

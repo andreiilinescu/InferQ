@@ -89,13 +89,19 @@ class PipelineManager:
             # Log system startup
             log_system_startup(self.num_workers)
             
-            # Initialize Azure connection ONCE for both duplicate detection and uploads
-            try:
-                self.azure_conn = AzureConnection()
-                logger.warning("✓ Azure connection established for remote storage")
-            except Exception as e:
-                logger.warning(f"⚠️  Azure connection failed: {e}")
-                logger.warning("⚠️  Remote storage disabled - LOCAL ONLY mode")
+            # Initialize Azure connection ONCE for both duplicate detection and uploads (if enabled)
+            from config import get_azure_config
+            azure_config = get_azure_config()
+            
+            if azure_config['enabled']:
+                try:
+                    self.azure_conn = AzureConnection()
+                    logger.warning("✓ Azure connection established for remote storage")
+                except Exception as e:
+                    logger.warning(f"⚠️  Azure connection failed: {e}")
+                    logger.warning("⚠️  Remote storage disabled - LOCAL ONLY mode")
+            else:
+                logger.warning("⚠️  Azure disabled in configuration - LOCAL ONLY mode")
             
             # Initialize duplicate detection system with shared Azure connection
             logger.warning("🔍 Initializing duplicate detection system...")
@@ -109,7 +115,9 @@ class PipelineManager:
             
             # Create local storage directory from config
             storage_config = get_storage_config()
-            Path(f"./{storage_config['local_circuits_dir']}").mkdir(exist_ok=True)
+            storage_path = Path(storage_config['local_circuits_dir'])
+            storage_path.mkdir(parents=True, exist_ok=True)
+            logger.warning(f"📁 Local storage directory: {storage_path.absolute()}")
             
             return True
             
@@ -146,7 +154,7 @@ class PipelineManager:
                         # Update statistics and handle uploads
                         self._update_stats(batch_results)
                         self._handle_azure_uploads()
-                        self._handle_cleanup()
+                        # self._handle_cleanup()
                         
                         # Log batch status
                         self._log_batch_status(iteration + 1, batch_results)
@@ -280,7 +288,7 @@ class PipelineManager:
         """Handle periodic cleanup of old circuit files."""
         if should_cleanup(self.stats['total_processed']):
             storage_config = get_storage_config()
-            cleanup_stats = cleanup_old_circuits(Path(f"./{storage_config['local_circuits_dir']}"), max_age_hours=24)
+            cleanup_stats = cleanup_old_circuits(Path(storage_config['local_circuits_dir']), max_age_hours=24)
             log_cleanup_results(cleanup_stats)
     
     def _log_batch_status(self, batch_num: int, batch_results: List[Dict[str, Any]]) -> None:
