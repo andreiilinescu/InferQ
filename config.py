@@ -46,7 +46,7 @@ class PipelineConfig:
         'max_depth': 200,  # Reduced depth limit
         'min_depth': 1,
         'measure': False,
-        'seed': 5000000,
+        'seed': 0,
         'stopping_probability': 0.3,  # Higher probability to stop (shorter circuits)
         'max_generators': 5,  # Fewer generators for simpler circuits
         'max_circuit_size': 1500,  # Maximum total gates
@@ -55,7 +55,7 @@ class PipelineConfig:
     # Simulation Configuration
     SIMULATION = {
         'shots': None,  # Exact simulation
-        'seed': 5000000,
+        'seed': 0,
         'timeout_seconds': 60,  
         'max_qubits_statevector': 30,  # Conservative limit for statevector
         'max_qubits_unitary': 25,  # Conservative limit for unitary/density matrix
