@@ -1,6 +1,6 @@
 from generators.circuit_merger import CircuitMerger
 from generators.lib.generator import BaseParams
-from config import get_circuit_config, get_simulation_config, get_storage_config, apply_optimizations
+from config import get_circuit_config, get_simulation_config, get_storage_config, apply_optimizations,get_azure_config
 
 from utils.save_utils import (
     save_circuit_locally,
@@ -91,7 +91,9 @@ def run_extraction_pipeline(circuitMerger: CircuitMerger, quantumSimulator: Quan
     logger.info("\nSTEP 4: Local Storage")
     logger.info("-" * 30)
     try:
-        qpy_hash, features, written = save_circuit_locally(circ, combined_features, Path(f"./{storage_config['local_circuits_dir']}/"))
+        storage_path = Path(storage_config['local_circuits_dir'])
+        storage_path.mkdir(parents=True, exist_ok=True)
+        qpy_hash, features, written = save_circuit_locally(circ, combined_features, storage_path)
         if written:
             logger.info(f"✓ Circuit saved locally with hash: {qpy_hash}")
             logger.info(f"✓ Serialization method: {features.get('serialization_method', 'unknown')}")
@@ -154,18 +156,23 @@ def main():
     circuit_config = get_circuit_config()
     simulation_config = get_simulation_config()
     storage_config = get_storage_config()
+    azure_config = get_azure_config()
+
     seed = circuit_config['seed']
     logger.info(f"Using random seed: {seed}")
     
+    azure_conn=None
     # Initialize Azure connection for cloud storage
     logger.info("\nInitializing Azure Connection...")
-    try:
-        azure_conn = AzureConnection()
-        logger.info("✓ Connected to Azure services (Table Storage + Blob Storage)")
-    except Exception as e:
-        logger.warning(f"Azure connection failed: {e}")
-        logger.info("Continuing with local storage only...")
-        azure_conn = None
+    if azure_config['enabled']:
+        try:
+            self.azure_conn = AzureConnection()
+            logger.warning("✓ Azure connection established for remote storage")
+        except Exception as e:
+            logger.warning(f"⚠️  Azure connection failed: {e}")
+            logger.warning("⚠️  Remote storage disabled - LOCAL ONLY mode")
+    else:
+        logger.warning("⚠️  Azure disabled in configuration - LOCAL ONLY mode")
 
     # Configure circuit generation using centralized config
     logger.info("\nConfiguring Circuit Generation...")
