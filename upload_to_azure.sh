@@ -1,0 +1,92 @@
+#!/bin/bash
+# Upload circuits to Azure Blob Storage and Table Storage
+# This is a convenience wrapper around upload_circuits_to_azure.py
+
+set -e  # Exit on error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}  Circuit Upload to Azure${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo ""
+
+# Check if .env file exists
+if [ ! -f .env ]; then
+    echo -e "${RED}✗ Error: .env file not found${NC}"
+    echo "Please create a .env file with your Azure credentials."
+    echo "See .env.example or UPLOAD_CIRCUITS_README.md for details."
+    exit 1
+fi
+
+# Source the .env file to load Azure credentials
+echo -e "${BLUE}Loading Azure credentials from .env...${NC}"
+source .env
+echo -e "${GREEN}✓ Credentials loaded${NC}"
+echo ""
+
+# Test Azure connection first
+echo -e "${BLUE}Testing Azure connection...${NC}"
+if python test_azure_upload_connection.py; then
+    echo -e "${GREEN}✓ Azure connection successful${NC}"
+    echo ""
+else
+    echo -e "${RED}✗ Azure connection failed${NC}"
+    echo "Please fix the connection issues before proceeding."
+    exit 1
+fi
+
+# Ask user what they want to do
+echo -e "${YELLOW}What would you like to do?${NC}"
+echo "  1) Dry run (test without uploading)"
+echo "  2) Upload new circuits only (skip existing)"
+echo "  3) Upload all circuits (force overwrite)"
+echo "  4) Exit"
+echo ""
+read -p "Enter your choice (1-4): " choice
+
+case $choice in
+    1)
+        echo ""
+        echo -e "${BLUE}Running dry run...${NC}"
+        python upload_circuits_to_azure.py --dry-run --verbose
+        ;;
+    2)
+        echo ""
+        echo -e "${BLUE}Uploading new circuits only...${NC}"
+        python upload_circuits_to_azure.py --verbose
+        ;;
+    3)
+        echo ""
+        echo -e "${YELLOW}⚠ WARNING: This will overwrite existing circuits in Azure${NC}"
+        read -p "Are you sure? (yes/no): " confirm
+        if [ "$confirm" = "yes" ]; then
+            echo ""
+            echo -e "${BLUE}Uploading all circuits (force mode)...${NC}"
+            python upload_circuits_to_azure.py --force --verbose
+        else
+            echo -e "${YELLOW}Upload cancelled${NC}"
+            exit 0
+        fi
+        ;;
+    4)
+        echo -e "${BLUE}Exiting...${NC}"
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}Invalid choice${NC}"
+        exit 1
+        ;;
+esac
+
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  Upload Complete!${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+echo "Check upload_circuits_to_azure.log for detailed logs."

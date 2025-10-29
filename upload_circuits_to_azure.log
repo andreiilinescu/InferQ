@@ -1,0 +1,165 @@
+2025-10-29 23:15:20,166 - __main__ - INFO - Using circuits directory: /Users/andilin/Uni/data/circuits
+2025-10-29 23:15:20,166 - __main__ - INFO - ================================================================================
+2025-10-29 23:15:20,166 - __main__ - INFO - Starting bulk circuit upload to Azure
+2025-10-29 23:15:20,166 - __main__ - INFO - ================================================================================
+2025-10-29 23:15:20,166 - __main__ - INFO - Connecting to Azure...
+2025-10-29 23:15:20,167 - azure.core.pipeline.policies.http_logging_policy - INFO - Request URL: 'https://inferqstorage.table.core.windows.net/Tables'
+Request method: 'POST'
+Request headers:
+    'Content-Type': 'application/json;odata=nometadata'
+    'Content-Length': '25'
+    'x-ms-version': 'REDACTED'
+    'DataServiceVersion': 'REDACTED'
+    'Accept': 'application/json;odata=minimalmetadata'
+    'x-ms-client-request-id': 'c1ab16b6-b514-11f0-a839-a2a9ce831042'
+    'x-ms-date': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:15:20 GMT'
+    'User-Agent': 'azsdk-python-data-tables/12.7.0 Python/3.13.3 (macOS-13.4-arm64-arm-64bit-Mach-O)'
+    'Authorization': 'REDACTED'
+A body is sent with the request
+2025-10-29 23:15:20,181 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): inferqstorage.table.core.windows.net:443
+2025-10-29 23:15:20,327 - urllib3.connectionpool - DEBUG - https://inferqstorage.table.core.windows.net:443 "POST /Tables HTTP/1.1" 409 None
+2025-10-29 23:15:20,331 - azure.core.pipeline.policies.http_logging_policy - INFO - Response status: 409
+Response headers:
+    'Cache-Control': 'no-cache'
+    'Transfer-Encoding': 'chunked'
+    'Content-Type': 'application/json;odata=minimalmetadata;streaming=true;charset=utf-8'
+    'Server': 'Windows-Azure-Table/1.0 Microsoft-HTTPAPI/2.0'
+    'x-ms-request-id': '8fa5f4df-a002-0022-1321-49229d000000'
+    'x-ms-client-request-id': 'c1ab16b6-b514-11f0-a839-a2a9ce831042'
+    'x-ms-version': 'REDACTED'
+    'X-Content-Type-Options': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:15:20 GMT'
+2025-10-29 23:15:20,332 - utils.azure_connection - DEBUG - Table circuits already exists
+2025-10-29 23:15:20,332 - __main__ - INFO - ✓ Azure connection established
+2025-10-29 23:15:20,332 - __main__ - INFO - Scanning circuits directory: /Users/andilin/Uni/data/circuits
+2025-10-29 23:15:20,332 - __main__ - ERROR - Circuits directory not found: /Users/andilin/Uni/data/circuits
+2025-10-29 23:15:20,332 - __main__ - WARNING - No circuits found to upload
+2025-10-29 23:17:21,219 - __main__ - INFO - Using circuits directory: /Users/andreiilinescu/Projects/InferQ/circuits
+2025-10-29 23:17:21,220 - __main__ - INFO - ================================================================================
+2025-10-29 23:17:21,220 - __main__ - INFO - Starting bulk circuit upload to Azure
+2025-10-29 23:17:21,220 - __main__ - INFO - ================================================================================
+2025-10-29 23:17:21,220 - __main__ - INFO - Connecting to Azure...
+2025-10-29 23:17:21,221 - azure.core.pipeline.policies.http_logging_policy - INFO - Request URL: 'https://inferqstorage.table.core.windows.net/Tables'
+Request method: 'POST'
+Request headers:
+    'Content-Type': 'application/json;odata=nometadata'
+    'Content-Length': '25'
+    'x-ms-version': 'REDACTED'
+    'DataServiceVersion': 'REDACTED'
+    'Accept': 'application/json;odata=minimalmetadata'
+    'x-ms-client-request-id': '09d2731c-b515-11f0-8f58-a2a9ce831042'
+    'x-ms-date': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:17:21 GMT'
+    'User-Agent': 'azsdk-python-data-tables/12.7.0 Python/3.13.3 (macOS-13.4-arm64-arm-64bit-Mach-O)'
+    'Authorization': 'REDACTED'
+A body is sent with the request
+2025-10-29 23:17:21,228 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): inferqstorage.table.core.windows.net:443
+2025-10-29 23:17:21,398 - urllib3.connectionpool - DEBUG - https://inferqstorage.table.core.windows.net:443 "POST /Tables HTTP/1.1" 409 None
+2025-10-29 23:17:21,400 - azure.core.pipeline.policies.http_logging_policy - INFO - Response status: 409
+Response headers:
+    'Cache-Control': 'no-cache'
+    'Transfer-Encoding': 'chunked'
+    'Content-Type': 'application/json;odata=minimalmetadata;streaming=true;charset=utf-8'
+    'Server': 'Windows-Azure-Table/1.0 Microsoft-HTTPAPI/2.0'
+    'x-ms-request-id': 'c6b62e26-2002-0061-5621-49c4c1000000'
+    'x-ms-client-request-id': '09d2731c-b515-11f0-8f58-a2a9ce831042'
+    'x-ms-version': 'REDACTED'
+    'X-Content-Type-Options': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:17:20 GMT'
+2025-10-29 23:17:21,401 - utils.azure_connection - DEBUG - Table circuits already exists
+2025-10-29 23:17:21,401 - __main__ - INFO - ✓ Azure connection established
+2025-10-29 23:17:21,401 - __main__ - INFO - Scanning circuits directory: /Users/andreiilinescu/Projects/InferQ/circuits
+2025-10-29 23:17:21,401 - __main__ - DEBUG - Found circuit: 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b
+2025-10-29 23:17:21,401 - __main__ - INFO - Discovered 1 circuits
+2025-10-29 23:17:21,401 - __main__ - INFO - Starting upload of 1 circuits...
+2025-10-29 23:17:21,440 - __main__ - INFO - Processing circuit: 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b
+2025-10-29 23:17:21,442 - __main__ - INFO - Uploading circuit 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b to Blob Storage...
+2025-10-29 23:17:21,442 - utils.blob_storage - INFO - Uploading circuit to blob storage: 10 qubits, depth 10, hash 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b
+2025-10-29 23:17:21,442 - utils.blob_storage - DEBUG - Requested serialization method: qpy
+2025-10-29 23:17:21,442 - utils.blob_storage - DEBUG - Attempting QPY serialization for blob upload...
+2025-10-29 23:17:21,443 - utils.blob_storage - DEBUG - ✓ QPY serialization for upload successful (683 bytes)
+2025-10-29 23:17:21,443 - utils.blob_storage - DEBUG - Blob path: 53/53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b.qpy
+2025-10-29 23:17:21,443 - utils.blob_storage - DEBUG - Uploading to Azure Blob Storage...
+2025-10-29 23:17:21,444 - utils.blob_storage - DEBUG - Blob metadata: {'sha256': '53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b', 'format': 'qpy', 'nqubits': '10', 'depth': '10', 'size': '10'}
+2025-10-29 23:17:21,445 - azure.core.pipeline.policies.http_logging_policy - INFO - Request URL: 'https://inferqstorage.blob.core.windows.net/circuits/53/53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b.qpy'
+Request method: 'PUT'
+Request headers:
+    'Content-Length': '683'
+    'x-ms-meta-sha256': 'REDACTED'
+    'x-ms-meta-format': 'REDACTED'
+    'x-ms-meta-nqubits': 'REDACTED'
+    'x-ms-meta-depth': 'REDACTED'
+    'x-ms-meta-size': 'REDACTED'
+    'x-ms-blob-type': 'REDACTED'
+    'x-ms-blob-content-type': 'REDACTED'
+    'x-ms-version': 'REDACTED'
+    'Content-Type': 'application/octet-stream'
+    'Accept': 'application/xml'
+    'User-Agent': 'azsdk-python-storage-blob/12.25.1 Python/3.13.3 (macOS-13.4-arm64-arm-64bit-Mach-O)'
+    'x-ms-date': 'REDACTED'
+    'x-ms-client-request-id': '09f48786-b515-11f0-8f58-a2a9ce831042'
+    'Authorization': 'REDACTED'
+A body is sent with the request
+2025-10-29 23:17:21,446 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): inferqstorage.blob.core.windows.net:443
+2025-10-29 23:17:21,599 - urllib3.connectionpool - DEBUG - https://inferqstorage.blob.core.windows.net:443 "PUT /circuits/53/53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b.qpy HTTP/1.1" 201 0
+2025-10-29 23:17:21,600 - azure.core.pipeline.policies.http_logging_policy - INFO - Response status: 201
+Response headers:
+    'Content-Length': '0'
+    'Content-MD5': 'REDACTED'
+    'Last-Modified': 'Wed, 29 Oct 2025 22:17:21 GMT'
+    'ETag': '"0x8DE1738EE4F922A"'
+    'Server': 'Windows-Azure-Blob/1.0 Microsoft-HTTPAPI/2.0'
+    'x-ms-request-id': 'ba7da6a2-301e-0042-0e21-495e02000000'
+    'x-ms-client-request-id': '09f48786-b515-11f0-8f58-a2a9ce831042'
+    'x-ms-version': 'REDACTED'
+    'x-ms-content-crc64': 'REDACTED'
+    'x-ms-request-server-encrypted': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:17:20 GMT'
+2025-10-29 23:17:21,600 - utils.blob_storage - INFO - ✓ Circuit uploaded to blob storage (format: qpy, size: 683 bytes)
+2025-10-29 23:17:21,600 - utils.blob_storage - DEBUG - Blob URL: https://inferqstorage.blob.core.windows.net/circuits/53/53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b.qpy
+2025-10-29 23:17:21,600 - __main__ - INFO - ✓ Circuit uploaded to blob: https://inferqstorage.blob.core.windows.net/circuits/53/53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b.qpy
+2025-10-29 23:17:21,600 - __main__ - INFO - Uploading metadata for 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b to Table Storage...
+2025-10-29 23:17:21,600 - utils.table_storage - INFO - Saving circuit metadata to table: 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b
+2025-10-29 23:17:21,601 - utils.table_storage - DEBUG - Features to save: 10 items
+2025-10-29 23:17:21,601 - utils.table_storage - DEBUG - Preparing entity for Azure Table Storage...
+2025-10-29 23:17:21,601 - utils.table_storage - DEBUG - ✓ Processed 9 features for table storage
+2025-10-29 23:17:21,601 - utils.table_storage - DEBUG - Attempting to save entity to Azure Table...
+2025-10-29 23:17:21,602 - azure.core.pipeline.policies.http_logging_policy - INFO - Request URL: 'https://inferqstorage.table.core.windows.net/circuits'
+Request method: 'POST'
+Request headers:
+    'Content-Type': 'application/json;odata=nometadata'
+    'Content-Length': '680'
+    'x-ms-version': 'REDACTED'
+    'DataServiceVersion': 'REDACTED'
+    'Accept': 'application/json;odata=minimalmetadata'
+    'x-ms-client-request-id': '0a0c8a0c-b515-11f0-8f58-a2a9ce831042'
+    'x-ms-date': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:17:21 GMT'
+    'User-Agent': 'azsdk-python-data-tables/12.7.0 Python/3.13.3 (macOS-13.4-arm64-arm-64bit-Mach-O)'
+    'Authorization': 'REDACTED'
+A body is sent with the request
+2025-10-29 23:17:21,646 - urllib3.connectionpool - DEBUG - https://inferqstorage.table.core.windows.net:443 "POST /circuits HTTP/1.1" 201 None
+2025-10-29 23:17:21,646 - azure.core.pipeline.policies.http_logging_policy - INFO - Response status: 201
+Response headers:
+    'Cache-Control': 'no-cache'
+    'Transfer-Encoding': 'chunked'
+    'Content-Type': 'application/json;odata=minimalmetadata;streaming=true;charset=utf-8'
+    'ETag': 'W/"datetime'2025-10-29T22%3A17%3A21.7397145Z'"'
+    'Location': 'REDACTED'
+    'Server': 'Windows-Azure-Table/1.0 Microsoft-HTTPAPI/2.0'
+    'x-ms-request-id': 'c6b62e3f-2002-0061-6c21-49c4c1000000'
+    'x-ms-client-request-id': '0a0c8a0c-b515-11f0-8f58-a2a9ce831042'
+    'x-ms-version': 'REDACTED'
+    'X-Content-Type-Options': 'REDACTED'
+    'Date': 'Wed, 29 Oct 2025 22:17:20 GMT'
+2025-10-29 23:17:21,647 - utils.table_storage - INFO - ✓ Circuit metadata saved to table: 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b
+2025-10-29 23:17:21,647 - __main__ - INFO - ✓ Circuit 53af0cedfe362e421e68336360c4fe4a1f503a9c1fe01052a92a70088c9f1e0b uploaded successfully
+2025-10-29 23:17:21,648 - __main__ - INFO - ================================================================================
+2025-10-29 23:17:21,648 - __main__ - INFO - Upload Summary
+2025-10-29 23:17:21,648 - __main__ - INFO - ================================================================================
+2025-10-29 23:17:21,648 - __main__ - INFO - Total circuits: 1
+2025-10-29 23:17:21,648 - __main__ - INFO - Successfully uploaded: 1
+2025-10-29 23:17:21,648 - __main__ - INFO - Failed: 0
+2025-10-29 23:17:21,648 - __main__ - INFO - Skipped (already exist): 0
+2025-10-29 23:17:21,648 - __main__ - INFO - ================================================================================
