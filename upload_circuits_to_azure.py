@@ -10,6 +10,7 @@ then uploads both to Azure services:
 import json
 import logging
 import sys
+import shutil
 from pathlib import Path
 import qiskit.qpy
 from tqdm import tqdm
@@ -89,7 +90,7 @@ def discover_circuits(circuits_dir: Path):
     return circuit_dirs
 
 
-def upload_circuit(circuit_dir: Path, circuit_id: str, azure_conn: AzureConnection, dry_run: bool = False):
+def upload_circuit(circuit_dir: Path, circuit_id: str, azure_conn: AzureConnection, dry_run: bool = False, delete_after_upload: bool = False):
     """
     Upload a single circuit to Azure.
     
@@ -98,6 +99,7 @@ def upload_circuit(circuit_dir: Path, circuit_id: str, azure_conn: AzureConnecti
         circuit_id: Circuit hash/ID
         azure_conn: Azure connection object
         dry_run: If True, only simulate the upload
+        delete_after_upload: If True, delete local circuit folder after successful upload
         
     Returns:
         bool: True if successful, False otherwise
@@ -148,6 +150,16 @@ def upload_circuit(circuit_dir: Path, circuit_id: str, azure_conn: AzureConnecti
         
         if success:
             logger.info(f"✓ Circuit {circuit_id} uploaded successfully")
+            
+            # Delete local folder if requested
+            if delete_after_upload and not dry_run:
+                try:
+                    shutil.rmtree(circuit_dir)
+                    logger.info(f"🗑️  Deleted local folder: {circuit_dir.name}")
+                except Exception as e:
+                    logger.warning(f"⚠ Failed to delete local folder {circuit_dir.name}: {e}")
+                    # Don't fail the upload if deletion fails
+            
             return True
         else:
             logger.error(f"✗ Failed to upload metadata for {circuit_id}")
@@ -158,7 +170,7 @@ def upload_circuit(circuit_dir: Path, circuit_id: str, azure_conn: AzureConnecti
         return False
 
 
-def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing: bool = True):
+def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing: bool = True, delete_after_upload: bool = False):
     """
     Upload all circuits from the local circuits directory to Azure.
     
@@ -166,6 +178,7 @@ def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing
         circuits_dir: Path to the circuits directory
         dry_run: If True, only simulate the upload
         skip_existing: If True, skip circuits that already exist in Azure
+        delete_after_upload: If True, delete local circuit folders after successful upload
         
     Returns:
         dict: Statistics about the upload process
@@ -201,7 +214,8 @@ def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing
         'total': len(circuit_dirs),
         'successful': 0,
         'failed': 0,
-        'skipped': 0
+        'skipped': 0,
+        'deleted': 0
     }
     
     logger.info(f"Starting upload of {stats['total']} circuits...")
@@ -227,10 +241,12 @@ def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing
                         logger.debug(f"Circuit {circuit_id} not found in Azure (will upload): {e}")
                 
                 # Upload the circuit
-                success = upload_circuit(circuit_dir, circuit_id, azure_conn, dry_run)
+                success = upload_circuit(circuit_dir, circuit_id, azure_conn, dry_run, delete_after_upload)
                 
                 if success:
                     stats['successful'] += 1
+                    if delete_after_upload and not dry_run:
+                        stats['deleted'] += 1
                 else:
                     stats['failed'] += 1
                     
@@ -248,6 +264,8 @@ def upload_all_circuits(circuits_dir: Path, dry_run: bool = False, skip_existing
     logger.info(f"Successfully uploaded: {stats['successful']}")
     logger.info(f"Failed: {stats['failed']}")
     logger.info(f"Skipped (already exist): {stats['skipped']}")
+    if delete_after_upload:
+        logger.info(f"Local folders deleted: {stats['deleted']}")
     logger.info("=" * 80)
     
     return stats
@@ -281,6 +299,11 @@ def main():
         action='store_true',
         help='Enable verbose logging'
     )
+    parser.add_argument(
+        '--delete-after-upload',
+        action='store_true',
+        help='Delete local circuit folders after successful upload to Azure (saves disk space)'
+    )
     
     args = parser.parse_args()
     
@@ -298,12 +321,18 @@ def main():
     
     logger.info(f"Using circuits directory: {circuits_dir}")
     
+    # Warn if delete option is used
+    if args.delete_after_upload and not args.dry_run:
+        logger.warning("⚠️  DELETE MODE: Local circuit folders will be deleted after successful upload!")
+        logger.warning("⚠️  Make sure you have backups or can regenerate these circuits!")
+    
     # Run upload
     skip_existing = not args.force
     stats = upload_all_circuits(
         circuits_dir=circuits_dir,
         dry_run=args.dry_run,
-        skip_existing=skip_existing
+        skip_existing=skip_existing,
+        delete_after_upload=args.delete_after_upload
     )
     
     # Exit with appropriate code

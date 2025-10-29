@@ -46,9 +46,10 @@ echo -e "${YELLOW}What would you like to do?${NC}"
 echo "  1) Dry run (test without uploading)"
 echo "  2) Upload new circuits only (skip existing)"
 echo "  3) Upload all circuits (force overwrite)"
-echo "  4) Exit"
+echo "  4) Upload and delete local folders after success (save disk space)"
+echo "  5) Exit"
 echo ""
-read -p "Enter your choice (1-4): " choice
+read -p "Enter your choice (1-5): " choice
 
 case $choice in
     1)
@@ -75,6 +76,21 @@ case $choice in
         fi
         ;;
     4)
+        echo ""
+        echo -e "${RED}⚠️  WARNING: This will DELETE local circuit folders after successful upload!${NC}"
+        echo -e "${RED}⚠️  Make sure you have backups or can regenerate these circuits!${NC}"
+        echo ""
+        read -p "Are you absolutely sure? (yes/no): " confirm
+        if [ "$confirm" = "yes" ]; then
+            echo ""
+            echo -e "${BLUE}Uploading circuits and deleting local folders...${NC}"
+            python upload_circuits_to_azure.py --delete-after-upload --verbose
+        else
+            echo -e "${YELLOW}Upload cancelled${NC}"
+            exit 0
+        fi
+        ;;
+    5)
         echo -e "${BLUE}Exiting...${NC}"
         exit 0
         ;;
