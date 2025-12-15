@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def rerun_simulations(circuits_dir, limit=None):
+def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
     """
     Reruns simulations for circuits in the specified directory and updates Azure Table.
     """
@@ -72,23 +72,74 @@ def rerun_simulations(circuits_dir, limit=None):
             filename = os.path.basename(file_path)
             circuit_hash = os.path.splitext(filename)[0]
 
-            # Run auto simulation
-            logger.info(f"Simulating {circuit_hash}...")
-            result = simulator.simulate_auto(qc)
+            updates = {}
+            success_flag = False
 
-            if result["success"]:
-                # Prepare updates
-                data = result.get("data", {})
-                actual_method = data.get("actual_method", result["method"])
+            if mode == "auto":
+                # Run auto simulation
+                logger.info(f"Simulating {circuit_hash} (auto)...")
+                result = simulator.simulate_auto(qc)
 
-                updates = {
-                    "simulation_method": actual_method,
-                    "execution_time": result["execution_time"],
-                    "memory_usage": result.get("memory_usage"),
-                    "transpiled_depth": result.get("transpiled_circuit_depth"),
-                    "transpiled_size": result.get("transpiled_circuit_size"),
-                    "transpiled_qubits": result.get("transpiled_num_qubits"),
-                }
+                if result["success"]:
+                    success_flag = True
+                    # Prepare updates
+                    data = result.get("data", {})
+                    actual_method = data.get("actual_method", result["method"])
+
+                    updates = {
+                        "simulation_method": actual_method,
+                        "execution_time": result["execution_time"],
+                        "memory_usage": result.get("memory_usage"),
+                        "transpiled_depth": result.get("transpiled_circuit_depth"),
+                        "transpiled_size": result.get("transpiled_circuit_size"),
+                        "transpiled_qubits": result.get("transpiled_num_qubits"),
+                    }
+                else:
+                    logger.warning(
+                        f"Simulation failed for {circuit_hash}: {result.get('error')}"
+                    )
+
+            elif mode == "all":
+                # Run all simulations
+                logger.info(f"Simulating {circuit_hash} (all methods)...")
+                results = simulator.simulate_all_methods(qc)
+
+                # Check if any method succeeded
+                if any(r.get("success", False) for r in results.values()):
+                    success_flag = True
+
+                    for method_name, result in results.items():
+                        if result.get("success", False):
+                            # Add method-specific columns
+                            prefix = method_name
+                            updates[f"{prefix}_execution_time"] = result.get(
+                                "execution_time"
+                            )
+                            updates[f"{prefix}_memory_usage"] = result.get(
+                                "memory_usage"
+                            )
+                            updates[f"{prefix}_transpiled_depth"] = result.get(
+                                "transpiled_circuit_depth"
+                            )
+                            updates[f"{prefix}_transpiled_size"] = result.get(
+                                "transpiled_circuit_size"
+                            )
+                            updates[f"{prefix}_gate_counts"] = result.get(
+                                "transpiled_gate_counts"
+                            )
+
+                            # Add extra data if available (e.g. entropy for statevector)
+                            data = result.get("data", {})
+                            if "entropy" in data:
+                                updates[f"{prefix}_entropy"] = data["entropy"]
+                            if "sparsity" in data:
+                                updates[f"{prefix}_sparsity"] = data["sparsity"]
+                else:
+                    logger.warning(f"All simulations failed for {circuit_hash}")
+
+            if success_flag and updates:
+                if verbose:
+                    logger.info(f"Updates for {circuit_hash}: {updates}")
 
                 # Update Azure Table
                 success = update_circuit_metadata_in_table(
@@ -98,10 +149,6 @@ def rerun_simulations(circuits_dir, limit=None):
                     count += 1
                 else:
                     logger.warning(f"Failed to update table for {circuit_hash}")
-            else:
-                logger.warning(
-                    f"Simulation failed for {circuit_hash}: {result.get('error')}"
-                )
 
         except Exception as e:
             logger.error(f"Error processing {file_path}: {e}")
@@ -119,13 +166,80 @@ if __name__ == "__main__":
     parser.add_argument(
         "--circuits-dir",
         type=str,
-        default=str(config.circuits_dir),
+        default=None,
         help="Directory containing circuits.",
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="Maximum number of circuits to process."
     )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["auto", "all"],
+        default=None,
+        help="Simulation mode: 'auto' or 'all'.",
+    )
 
     args = parser.parse_args()
 
-    rerun_simulations(args.circuits_dir, args.limit)
+    circuits_dir = args.circuits_dir
+    limit = args.limit
+    verbose = args.verbose
+    mode = args.mode
+
+    # Interactive prompts if arguments are not provided
+    if circuits_dir is None:
+        default_dir = str(config.circuits_dir)
+        try:
+            user_input = input(
+                f"Enter circuits directory [default: {default_dir}]: "
+            ).strip()
+            circuits_dir = user_input if user_input else default_dir
+        except EOFError:
+            circuits_dir = default_dir
+
+    if limit is None:
+        try:
+            user_input = input(
+                "Enter number of circuits to process (or press Enter for all): "
+            ).strip()
+            if user_input:
+                try:
+                    limit = int(user_input)
+                except ValueError:
+                    print("Invalid number. Defaulting to all.")
+                    limit = None
+            else:
+                limit = None
+        except EOFError:
+            limit = None
+
+    if mode is None:
+        try:
+            user_input = (
+                input("Enter simulation mode (auto/all) [default: auto]: ")
+                .strip()
+                .lower()
+            )
+            if user_input in ["auto", "all"]:
+                mode = user_input
+            else:
+                mode = "auto"
+        except EOFError:
+            mode = "auto"
+
+    if not verbose:
+        try:
+            user_input = input("Enable verbose mode? (y/N): ").strip().lower()
+            if user_input == "y":
+                verbose = True
+        except EOFError:
+            pass
+
+    print(f"Circuits directory: {circuits_dir}")
+    print(f"Limit: {limit if limit is not None else 'All'}")
+    print(f"Mode: {mode}")
+    print(f"Verbose: {verbose}")
+
+    rerun_simulations(circuits_dir, limit, verbose, mode)
