@@ -208,35 +208,40 @@ def rerun_simulations_parallel(
         # Process results as they complete
         with tqdm(total=len(files_to_process), desc="Processing circuits") as pbar:
             for future in as_completed(future_to_file):
-                result = future.result()
-                circuit_hash = result["hash"]
+                try:
+                    result = future.result()
+                    circuit_hash = result["hash"]
 
-                if result["success"]:
-                    updates = result["updates"]
-                    if verbose:
-                        logger.info(f"Updates for {circuit_hash}: {updates}")
+                    if result["success"]:
+                        updates = result["updates"]
+                        if verbose:
+                            logger.info(f"Updates for {circuit_hash}: {updates}")
 
-                    # Update Azure Table (in main process)
-                    try:
-                        success = update_circuit_metadata_in_table(
-                            table_client, circuit_hash, updates
-                        )
-                        if success:
-                            success_count += 1
-                            # Update checkpoint
-                            if checkpoint_file:
-                                with open(checkpoint_file, "a") as f:
-                                    f.write(f"{circuit_hash}\n")
-                        else:
-                            logger.warning(f"Failed to update table for {circuit_hash}")
+                        # Update Azure Table (in main process)
+                        try:
+                            success = update_circuit_metadata_in_table(
+                                table_client, circuit_hash, updates
+                            )
+                            if success:
+                                success_count += 1
+                                # Update checkpoint
+                                if checkpoint_file:
+                                    with open(checkpoint_file, "a") as f:
+                                        f.write(f"{circuit_hash}\n")
+                            else:
+                                logger.warning(f"Failed to update table for {circuit_hash}")
+                                fail_count += 1
+                        except Exception as e:
+                            logger.error(f"Error updating table for {circuit_hash}: {e}")
                             fail_count += 1
-                    except Exception as e:
-                        logger.error(f"Error updating table for {circuit_hash}: {e}")
+                    else:
+                        logger.warning(
+                            f"Simulation failed for {circuit_hash}: {result.get('error')}"
+                        )
                         fail_count += 1
-                else:
-                    logger.warning(
-                        f"Simulation failed for {circuit_hash}: {result.get('error')}"
-                    )
+                except Exception as e:
+                    file_path = future_to_file[future]
+                    logger.error(f"Worker failed for {file_path}: {e}")
                     fail_count += 1
 
                 pbar.update(1)
