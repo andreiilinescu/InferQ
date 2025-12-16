@@ -87,12 +87,18 @@ def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
                     actual_method = data.get("actual_method", result["method"])
 
                     updates = {
-                        "simulation_method": actual_method,
-                        "execution_time": result["execution_time"],
-                        "memory_usage": result.get("memory_usage"),
-                        "transpiled_depth": result.get("transpiled_circuit_depth"),
-                        "transpiled_size": result.get("transpiled_circuit_size"),
-                        "transpiled_qubits": result.get("transpiled_num_qubits"),
+                        "automatic_method": actual_method,
+                        "automatic_execution_time": result["execution_time"],
+                        "automatic_memory_usage": result.get("memory_usage"),
+                        "automatic_transpiled_depth": result.get(
+                            "transpiled_circuit_depth"
+                        ),
+                        "automatic_transpiled_size": result.get(
+                            "transpiled_circuit_size"
+                        ),
+                        "automatic_transpiled_qubits": result.get(
+                            "transpiled_num_qubits"
+                        ),
                     }
                 else:
                     logger.warning(
@@ -134,6 +140,8 @@ def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
                                 updates[f"{prefix}_entropy"] = data["entropy"]
                             if "sparsity" in data:
                                 updates[f"{prefix}_sparsity"] = data["sparsity"]
+                            if result.get("method") == "automatic":
+                                updates["automatic_method"] = data["actual_method"]
                 else:
                     logger.warning(f"All simulations failed for {circuit_hash}")
 
