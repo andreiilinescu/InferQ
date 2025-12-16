@@ -2,6 +2,8 @@ import os
 import sys
 import argparse
 import logging
+import threading
+import queue
 from tqdm import tqdm
 import qiskit.qpy
 
@@ -22,7 +24,57 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
+class AsyncCheckpointWriter:
+    def __init__(self, filepath, batch_size=50):
+        self.filepath = filepath
+        self.batch_size = batch_size
+        self.buffer = []
+        self.queue = queue.Queue()
+        self.running = True
+        self.worker_thread = threading.Thread(target=self._worker, daemon=True)
+        self.worker_thread.start()
+
+    def add(self, item):
+        self.buffer.append(item)
+        if len(self.buffer) >= self.batch_size:
+            self._flush_buffer()
+
+    def _flush_buffer(self):
+        if self.buffer:
+            self.queue.put(list(self.buffer))
+            self.buffer = []
+
+    def _worker(self):
+        while self.running or not self.queue.empty():
+            try:
+                batch = self.queue.get(timeout=0.5)
+                self._write_batch(batch)
+                self.queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error(f"Checkpoint worker error: {e}")
+
+    def _write_batch(self, batch):
+        try:
+            with open(self.filepath, "a") as f:
+                f.write("\n".join(batch) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to write checkpoint batch: {e}")
+
+    def close(self):
+        self._flush_buffer()
+        self.running = False
+        self.worker_thread.join()
+
+
+def rerun_simulations(
+    circuits_dir,
+    limit=None,
+    verbose=False,
+    mode="auto",
+    checkpoint_file="rerun_checkpoint.txt",
+):
     """
     Reruns simulations for circuits in the specified directory and updates Azure Table.
     """
@@ -38,6 +90,23 @@ def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
     except Exception as e:
         logger.error(f"Failed to connect to Azure: {e}")
         return
+
+    # Load checkpoint
+    processed_hashes = set()
+    if checkpoint_file and os.path.exists(checkpoint_file):
+        try:
+            with open(checkpoint_file, "r") as f:
+                processed_hashes = set(line.strip() for line in f if line.strip())
+            logger.info(
+                f"Loaded checkpoint. {len(processed_hashes)} circuits already processed."
+            )
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint: {e}")
+
+    # Initialize Checkpoint Writer
+    checkpoint_writer = None
+    if checkpoint_file:
+        checkpoint_writer = AsyncCheckpointWriter(checkpoint_file)
 
     # Initialize Simulator
     simulator = QuantumSimulator(timeout_seconds=60)  # Set a reasonable timeout
@@ -71,6 +140,9 @@ def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
             # Extract hash from filename (assuming hash.qpy)
             filename = os.path.basename(file_path)
             circuit_hash = os.path.splitext(filename)[0]
+
+            if circuit_hash in processed_hashes:
+                continue
 
             updates = {}
             success_flag = False
@@ -155,12 +227,18 @@ def rerun_simulations(circuits_dir, limit=None, verbose=False, mode="auto"):
                 )
                 if success:
                     count += 1
+                    # Update checkpoint
+                    if checkpoint_writer:
+                        checkpoint_writer.add(circuit_hash)
                 else:
                     logger.warning(f"Failed to update table for {circuit_hash}")
 
         except Exception as e:
             logger.error(f"Error processing {file_path}: {e}")
             continue
+
+    if checkpoint_writer:
+        checkpoint_writer.close()
 
     logger.info(f"Rerun complete. Total circuits updated: {count}")
 
@@ -188,6 +266,12 @@ if __name__ == "__main__":
         default=None,
         help="Simulation mode: 'auto' or 'all'.",
     )
+    parser.add_argument(
+        "--checkpoint-file",
+        type=str,
+        default="rerun_checkpoint.txt",
+        help="File to store processed circuit hashes.",
+    )
 
     args = parser.parse_args()
 
@@ -195,6 +279,7 @@ if __name__ == "__main__":
     limit = args.limit
     verbose = args.verbose
     mode = args.mode
+    checkpoint_file = args.checkpoint_file
 
     # Interactive prompts if arguments are not provided
     if circuits_dir is None:
@@ -249,5 +334,6 @@ if __name__ == "__main__":
     print(f"Limit: {limit if limit is not None else 'All'}")
     print(f"Mode: {mode}")
     print(f"Verbose: {verbose}")
+    print(f"Checkpoint File: {checkpoint_file}")
 
-    rerun_simulations(circuits_dir, limit, verbose, mode)
+    rerun_simulations(circuits_dir, limit, verbose, mode, checkpoint_file)
