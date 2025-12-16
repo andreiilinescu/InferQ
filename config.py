@@ -60,9 +60,9 @@ class PipelineConfig:
         "seed": 0,
         "timeout_seconds": 60,
         "max_qubits_statevector": 30,  # Conservative limit for statevector
-        "max_qubits_unitary": 25,  # Conservative limit for unitary/density matrix
+        "max_qubits_unitary": 30,  # Conservative limit for unitary/density matrix
         "max_qubits_mps": 35,
-        "max_circuit_size": 1000,  # Skip circuits with too many gates
+        "max_circuit_size": 3000,  # Skip circuits with too many gates
     }
 
     # Storage Configuration
@@ -164,6 +164,20 @@ class PipelineConfig:
             "seed": self.get_env_or_default("SIM_SEED", self.SIMULATION["seed"], int),
             "timeout_seconds": self.get_env_or_default(
                 "SIM_TIMEOUT", self.SIMULATION["timeout_seconds"], int
+            ),
+            "max_qubits_statevector": self.get_env_or_default(
+                "MAX_QUBITS_STATEVECTOR",
+                self.SIMULATION["max_qubits_statevector"],
+                int,
+            ),
+            "max_qubits_unitary": self.get_env_or_default(
+                "MAX_QUBITS_UNITARY", self.SIMULATION["max_qubits_unitary"], int
+            ),
+            "max_qubits_mps": self.get_env_or_default(
+                "MAX_QUBITS_MPS", self.SIMULATION["max_qubits_mps"], int
+            ),
+            "max_circuit_size": self.get_env_or_default(
+                "SIM_MAX_CIRCUIT_SIZE", self.SIMULATION["max_circuit_size"], int
             ),
         }
 
