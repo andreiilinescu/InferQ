@@ -1,4 +1,6 @@
 import os
+import sys
+import argparse
 import json
 import pandas as pd
 import numpy as np
@@ -48,6 +50,25 @@ def save_checkpoint(continuation_token, file_counter, total_rows):
             },
             f,
         )
+
+
+def fetch_circuit_by_id(circuit_id):
+    """
+    Fetches a single circuit entity by its RowKey (circuit_id).
+    """
+    try:
+        azure_conn = AzureConnection()
+        table_client = azure_conn.get_circuits_table_client()
+
+        logger.info(f"Fetching circuit with ID: {circuit_id}")
+        entity = table_client.get_entity(partition_key="circuits", row_key=circuit_id)
+
+        print(json.dumps(dict(entity), indent=4, default=str))
+        return entity
+
+    except Exception as e:
+        logger.error(f"Failed to fetch circuit {circuit_id}: {e}")
+        return None
 
 
 def fetch_data():
@@ -138,4 +159,43 @@ def fetch_data():
 
 
 if __name__ == "__main__":
-    fetch_data()
+    parser = argparse.ArgumentParser(description="Fetch circuit data from Azure Table Storage.")
+    parser.add_argument(
+        "--id",
+        type=str,
+        help="Fetch a specific circuit by its ID (RowKey).",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Fetch all circuits with pagination and checkpointing.",
+    )
+
+    args = parser.parse_args()
+
+    # Interactive mode if no arguments provided
+    if not args.id and not args.all:
+        print("No arguments provided. Interactive mode:")
+        print("1. Fetch all circuits")
+        print("2. Fetch a specific circuit by ID")
+        
+        try:
+            choice = input("Enter your choice (1/2): ").strip()
+            if choice == "1":
+                fetch_data()
+            elif choice == "2":
+                circuit_id = input("Enter Circuit ID (RowKey): ").strip()
+                if circuit_id:
+                    fetch_circuit_by_id(circuit_id)
+                else:
+                    print("No ID provided. Exiting.")
+            else:
+                print("Invalid choice. Exiting.")
+        except KeyboardInterrupt:
+            print("\nOperation cancelled.")
+    
+    elif args.id:
+        fetch_circuit_by_id(args.id)
+    
+    elif args.all:
+        fetch_data()
