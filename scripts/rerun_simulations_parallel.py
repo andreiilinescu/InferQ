@@ -25,6 +25,8 @@ logging.basicConfig(
         logging.FileHandler("rerun_simulations_parallel.log"),
     ],
 )
+logging.getLogger("qiskit.passmanager.base_tasks").setLevel(logging.WARNING)
+logging.getLogger("qiskit.compiler.transpiler").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -195,7 +197,8 @@ def rerun_simulations_parallel(
     success_count = 0
     fail_count = 0
 
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+    executor = ProcessPoolExecutor(max_workers=num_workers)
+    try:
         # Submit all tasks
         future_to_file = {
             executor.submit(process_circuit, file_path, mode): file_path
@@ -237,6 +240,12 @@ def rerun_simulations_parallel(
                     fail_count += 1
 
                 pbar.update(1)
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user. Shutting down workers...")
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    finally:
+        executor.shutdown(wait=True)
 
     logger.info(f"Rerun complete. Successful: {success_count}, Failed: {fail_count}")
 
@@ -326,6 +335,23 @@ if __name__ == "__main__":
                 mode = "auto"
         except EOFError:
             mode = "auto"
+
+    if num_workers is None:
+        try:
+            default_workers = max(1, mp.cpu_count() - 2)
+            user_input = input(
+                f"Enter number of workers [default: {default_workers}]: "
+            ).strip()
+            if user_input:
+                try:
+                    num_workers = int(user_input)
+                except ValueError:
+                    print(f"Invalid number. Defaulting to {default_workers}.")
+                    num_workers = default_workers
+            else:
+                num_workers = default_workers
+        except EOFError:
+            num_workers = None
 
     if not verbose:
         try:
