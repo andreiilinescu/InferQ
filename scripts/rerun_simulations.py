@@ -22,6 +22,8 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(), logging.FileHandler("rerun_simulations.log")],
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("qiskit.passmanager.base_tasks").setLevel(logging.WARNING)
+logging.getLogger("qiskit.compiler.transpiler").setLevel(logging.WARNING)
 
 
 class AsyncCheckpointWriter:
@@ -111,131 +113,151 @@ def rerun_simulations(
     # Initialize Simulator
     simulator = QuantumSimulator(timeout_seconds=60)  # Set a reasonable timeout
 
-    # Find QPY files
-    # We might have subdirectories (e.g. 00/hash.qpy)
-    qpy_files = []
-    for root, dirs, files in os.walk(circuits_dir):
-        for file in files:
-            if file.endswith(".qpy"):
-                qpy_files.append(os.path.join(root, file))
-
-    if not qpy_files:
-        logger.warning(f"No QPY files found in {circuits_dir}")
+    # Identify folders to process
+    try:
+        subdirs = [
+            d
+            for d in os.listdir(circuits_dir)
+            if os.path.isdir(os.path.join(circuits_dir, d))
+        ]
+        subdirs.sort()
+    except Exception as e:
+        logger.error(f"Error listing directories in {circuits_dir}: {e}")
         return
 
-    logger.info(f"Found {len(qpy_files)} QPY files.")
+    if not subdirs:
+        logger.warning(f"No subdirectories found in {circuits_dir}")
+        return
+
+    logger.info(f"Found {len(subdirs)} folders to process.")
 
     count = 0
 
-    for file_path in tqdm(qpy_files, desc="Processing circuits"):
+    for folder_name in tqdm(subdirs, desc="Processing folders"):
         if limit and count >= limit:
             break
 
+        folder_path = os.path.join(circuits_dir, folder_name)
         try:
-            # Load circuit
-            with open(file_path, "rb") as f:
-                circuits = qiskit.qpy.load(f)
-                qc = circuits[0] if isinstance(circuits, list) else circuits
-
-            # Extract hash from filename (assuming hash.qpy)
-            filename = os.path.basename(file_path)
-            circuit_hash = os.path.splitext(filename)[0]
-
-            if circuit_hash in processed_hashes:
-                continue
-
-            updates = {}
-            success_flag = False
-
-            if mode == "auto":
-                # Run auto simulation
-                logger.info(f"Simulating {circuit_hash} (auto)...")
-                result = simulator.simulate_auto(qc)
-
-                if result["success"]:
-                    success_flag = True
-                    # Prepare updates
-                    data = result.get("data", {})
-                    actual_method = data.get("actual_method", result["method"])
-
-                    updates = {
-                        "automatic_method": actual_method,
-                        "automatic_execution_time": result["execution_time"],
-                        "automatic_memory_usage": result.get("memory_usage"),
-                        "automatic_transpiled_depth": result.get(
-                            "transpiled_circuit_depth"
-                        ),
-                        "automatic_transpiled_size": result.get(
-                            "transpiled_circuit_size"
-                        ),
-                        "automatic_transpiled_qubits": result.get(
-                            "transpiled_num_qubits"
-                        ),
-                    }
-                else:
-                    logger.warning(
-                        f"Simulation failed for {circuit_hash}: {result.get('error')}"
-                    )
-
-            elif mode == "all":
-                # Run all simulations
-                logger.info(f"Simulating {circuit_hash} (all methods)...")
-                results = simulator.simulate_all_methods(qc)
-
-                # Check if any method succeeded
-                if any(r.get("success", False) for r in results.values()):
-                    success_flag = True
-
-                    for method_name, result in results.items():
-                        if result.get("success", False):
-                            # Add method-specific columns
-                            prefix = method_name
-                            updates[f"{prefix}_execution_time"] = result.get(
-                                "execution_time"
-                            )
-                            updates[f"{prefix}_memory_usage"] = result.get(
-                                "memory_usage"
-                            )
-                            updates[f"{prefix}_transpiled_depth"] = result.get(
-                                "transpiled_circuit_depth"
-                            )
-                            updates[f"{prefix}_transpiled_size"] = result.get(
-                                "transpiled_circuit_size"
-                            )
-                            updates[f"{prefix}_gate_counts"] = result.get(
-                                "transpiled_gate_counts"
-                            )
-
-                            # Add extra data if available (e.g. entropy for statevector)
-                            data = result.get("data", {})
-                            if "entropy" in data:
-                                updates[f"{prefix}_entropy"] = data["entropy"]
-                            if "sparsity" in data:
-                                updates[f"{prefix}_sparsity"] = data["sparsity"]
-                            if result.get("method") == "automatic":
-                                updates["automatic_method"] = data["actual_method"]
-                else:
-                    logger.warning(f"All simulations failed for {circuit_hash}")
-
-            if success_flag and updates:
-                if verbose:
-                    logger.info(f"Updates for {circuit_hash}: {updates}")
-
-                # Update Azure Table
-                success = update_circuit_metadata_in_table(
-                    table_client, circuit_hash, updates
-                )
-                if success:
-                    count += 1
-                    # Update checkpoint
-                    if checkpoint_writer:
-                        checkpoint_writer.add(circuit_hash)
-                else:
-                    logger.warning(f"Failed to update table for {circuit_hash}")
-
+            files = [f for f in os.listdir(folder_path) if f.endswith(".qpy")]
+            files.sort()
         except Exception as e:
-            logger.error(f"Error processing {file_path}: {e}")
+            logger.error(f"Error listing files in {folder_path}: {e}")
             continue
+
+        if not files:
+            continue
+
+        for filename in tqdm(files, desc=f"Processing {folder_name}", leave=False):
+            if limit and count >= limit:
+                break
+
+            file_path = os.path.join(folder_path, filename)
+
+            try:
+                # Load circuit
+                with open(file_path, "rb") as f:
+                    circuits = qiskit.qpy.load(f)
+                    qc = circuits[0] if isinstance(circuits, list) else circuits
+
+                # Extract hash from filename (assuming hash.qpy)
+                circuit_hash = os.path.splitext(filename)[0]
+
+                if circuit_hash in processed_hashes:
+                    continue
+
+                updates = {}
+                success_flag = False
+
+                if mode == "auto":
+                    # Run auto simulation
+                    logger.info(f"Simulating {circuit_hash} (auto)...")
+                    result = simulator.simulate_auto(qc)
+
+                    if result["success"]:
+                        success_flag = True
+                        # Prepare updates
+                        data = result.get("data", {})
+                        actual_method = data.get("actual_method", result["method"])
+
+                        updates = {
+                            "automatic_method": actual_method,
+                            "automatic_execution_time": result["execution_time"],
+                            "automatic_memory_usage": result.get("memory_usage"),
+                            "automatic_transpiled_depth": result.get(
+                                "transpiled_circuit_depth"
+                            ),
+                            "automatic_transpiled_size": result.get(
+                                "transpiled_circuit_size"
+                            ),
+                            "automatic_transpiled_qubits": result.get(
+                                "transpiled_num_qubits"
+                            ),
+                        }
+                    else:
+                        logger.warning(
+                            f"Simulation failed for {circuit_hash}: {result.get('error')}"
+                        )
+
+                elif mode == "all":
+                    # Run all simulations
+                    logger.info(f"Simulating {circuit_hash} (all methods)...")
+                    results = simulator.simulate_all_methods(qc)
+
+                    # Check if any method succeeded
+                    if any(r.get("success", False) for r in results.values()):
+                        success_flag = True
+
+                        for method_name, result in results.items():
+                            if result.get("success", False):
+                                # Add method-specific columns
+                                prefix = method_name
+                                updates[f"{prefix}_execution_time"] = result.get(
+                                    "execution_time"
+                                )
+                                updates[f"{prefix}_memory_usage"] = result.get(
+                                    "memory_usage"
+                                )
+                                updates[f"{prefix}_transpiled_depth"] = result.get(
+                                    "transpiled_circuit_depth"
+                                )
+                                updates[f"{prefix}_transpiled_size"] = result.get(
+                                    "transpiled_circuit_size"
+                                )
+                                updates[f"{prefix}_gate_counts"] = result.get(
+                                    "transpiled_gate_counts"
+                                )
+
+                                # Add extra data if available (e.g. entropy for statevector)
+                                data = result.get("data", {})
+                                if "entropy" in data:
+                                    updates[f"{prefix}_entropy"] = data["entropy"]
+                                if "sparsity" in data:
+                                    updates[f"{prefix}_sparsity"] = data["sparsity"]
+                                if result.get("method") == "automatic":
+                                    updates["automatic_method"] = data["actual_method"]
+                    else:
+                        logger.warning(f"All simulations failed for {circuit_hash}")
+
+                if success_flag and updates:
+                    if verbose:
+                        logger.info(f"Updates for {circuit_hash}: {updates}")
+
+                    # Update Azure Table
+                    success = update_circuit_metadata_in_table(
+                        table_client, circuit_hash, updates
+                    )
+                    if success:
+                        count += 1
+                        # Update checkpoint
+                        if checkpoint_writer:
+                            checkpoint_writer.add(circuit_hash)
+                    else:
+                        logger.warning(f"Failed to update table for {circuit_hash}")
+
+            except Exception as e:
+                logger.error(f"Error processing {file_path}: {e}")
+                continue
 
     if checkpoint_writer:
         checkpoint_writer.close()
@@ -311,16 +333,16 @@ if __name__ == "__main__":
     if mode is None:
         try:
             user_input = (
-                input("Enter simulation mode (auto/all) [default: auto]: ")
+                input("Enter simulation mode (auto/all) [default: all]: ")
                 .strip()
                 .lower()
             )
             if user_input in ["auto", "all"]:
                 mode = user_input
             else:
-                mode = "auto"
+                mode = "all"
         except EOFError:
-            mode = "auto"
+            mode = "all"
 
     if not verbose:
         try:
