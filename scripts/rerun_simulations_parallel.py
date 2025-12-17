@@ -1,21 +1,20 @@
 import os
 import sys
 
-# Set environment variables to limit thread usage per worker
-# This must be done BEFORE importing numpy or qiskit
+# Set environment variables to limit threads per worker to avoid oversubscription
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["QISKIT_AER_PARALLEL_THREADS"] = "1"
 
 import argparse
 import logging
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed, wait, FIRST_COMPLETED
+import multiprocessing
+import psutil
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import qiskit.qpy
-import time
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -34,19 +33,19 @@ logging.basicConfig(
         logging.FileHandler("rerun_simulations_parallel.log"),
     ],
 )
+logger = logging.getLogger(__name__)
 logging.getLogger("qiskit.passmanager.base_tasks").setLevel(logging.WARNING)
 logging.getLogger("qiskit.compiler.transpiler").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
+
+MEMORY_THRESHOLD_PERCENT = 90
+MEMORY_CHECK_INTERVAL = 5
 
 
-def process_circuit(file_path, mode):
+def process_circuit_file(file_path, mode, simulator):
     """
-    Worker function to process a single circuit.
+    Helper function to process a single circuit using an existing simulator instance.
     """
     try:
-        # Initialize Simulator inside worker to ensure fresh state and avoid pickling issues
-        simulator = QuantumSimulator(timeout_seconds=60)
-
         # Load circuit
         with open(file_path, "rb") as f:
             circuits = qiskit.qpy.load(f)
@@ -57,13 +56,13 @@ def process_circuit(file_path, mode):
         circuit_hash = os.path.splitext(filename)[0]
 
         updates = {}
-        success = False
+        success_flag = False
         error_msg = None
 
         if mode == "auto":
             result = simulator.simulate_auto(qc)
             if result["success"]:
-                success = True
+                success_flag = True
                 data = result.get("data", {})
                 actual_method = data.get("actual_method", result["method"])
                 updates = {
@@ -82,7 +81,7 @@ def process_circuit(file_path, mode):
         elif mode == "all":
             results = simulator.simulate_all_methods(qc)
             if any(r.get("success", False) for r in results.values()):
-                success = True
+                success_flag = True
                 for method_name, result in results.items():
                     if result.get("success", False):
                         prefix = method_name
@@ -112,7 +111,7 @@ def process_circuit(file_path, mode):
 
         return {
             "hash": circuit_hash,
-            "success": success,
+            "success": success_flag,
             "updates": updates,
             "error": error_msg,
             "file_path": file_path,
@@ -120,12 +119,49 @@ def process_circuit(file_path, mode):
 
     except Exception as e:
         return {
-            "hash": os.path.splitext(os.path.basename(file_path))[0],
+            "hash": None,
             "success": False,
             "updates": {},
             "error": str(e),
             "file_path": file_path,
         }
+
+
+def process_folder(folder_path, mode, processed_hashes):
+    """
+    Worker function to process all circuits in a folder.
+    """
+    results = []
+    try:
+        # Initialize Simulator once per folder/worker
+        simulator = QuantumSimulator(timeout_seconds=60)
+
+        # List files in the folder
+        try:
+            files = [f for f in os.listdir(folder_path) if f.endswith(".qpy")]
+        except FileNotFoundError:
+            return []
+
+        for filename in files:
+            # Memory Hold-off
+            while psutil.virtual_memory().percent > MEMORY_THRESHOLD_PERCENT:
+                # Sleep to let memory clear up
+                time.sleep(MEMORY_CHECK_INTERVAL)
+
+            circuit_hash = os.path.splitext(filename)[0]
+
+            # Skip if already processed
+            if circuit_hash in processed_hashes:
+                continue
+
+            file_path = os.path.join(folder_path, filename)
+            result = process_circuit_file(file_path, mode, simulator)
+            results.append(result)
+
+    except Exception as e:
+        logger.error(f"Error processing folder {folder_path}: {e}")
+
+    return results
 
 
 def rerun_simulations_parallel(
@@ -136,14 +172,11 @@ def rerun_simulations_parallel(
     checkpoint_file="rerun_checkpoint.txt",
     num_workers=None,
 ):
-    """
-    Reruns simulations for circuits in parallel and updates Azure Table.
-    """
     if not os.path.exists(circuits_dir):
         logger.error(f"Circuits directory not found: {circuits_dir}")
         return
 
-    # Initialize Azure connection (in main process)
+    # Initialize Azure connection (Main Process)
     try:
         azure_conn = AzureConnection()
         table_client = azure_conn.circuits_table_client
@@ -164,140 +197,135 @@ def rerun_simulations_parallel(
         except Exception as e:
             logger.error(f"Failed to load checkpoint: {e}")
 
-    # Find QPY files
-    qpy_files = []
-    for root, dirs, files in os.walk(circuits_dir):
-        for file in files:
-            if file.endswith(".qpy"):
-                qpy_files.append(os.path.join(root, file))
+    # Bucket processed hashes by folder prefix (first 2 chars)
+    processed_buckets = {}
+    if processed_hashes:
+        logger.info("Bucketing processed hashes...")
+        for h in processed_hashes:
+            prefix = h[:2]
+            if prefix not in processed_buckets:
+                processed_buckets[prefix] = set()
+            processed_buckets[prefix].add(h)
 
-    if not qpy_files:
-        logger.warning(f"No QPY files found in {circuits_dir}")
+    # Identify folders to process
+    try:
+        subdirs = [
+            d
+            for d in os.listdir(circuits_dir)
+            if os.path.isdir(os.path.join(circuits_dir, d))
+        ]
+        subdirs.sort()
+    except Exception as e:
+        logger.error(f"Error listing directories in {circuits_dir}: {e}")
         return
 
-    logger.info(f"Found {len(qpy_files)} QPY files.")
-
-    # Filter out processed files
-    files_to_process = []
-    for file_path in qpy_files:
-        filename = os.path.basename(file_path)
-        circuit_hash = os.path.splitext(filename)[0]
-        if circuit_hash not in processed_hashes:
-            files_to_process.append(file_path)
-
-    if limit:
-        files_to_process = files_to_process[:limit]
-
-    logger.info(f"Processing {len(files_to_process)} circuits after filtering.")
-
-    if not files_to_process:
-        logger.info("No new circuits to process.")
+    if not subdirs:
+        logger.warning(f"No subdirectories found in {circuits_dir}")
         return
 
-    # Determine number of workers
+    logger.info(f"Found {len(subdirs)} folders to process.")
+
+    # Determine workers
     if num_workers is None:
-        num_workers = max(
-            1, mp.cpu_count() - 2
-        )  # Leave some cores for system/main process
+        num_workers = max(1, multiprocessing.cpu_count() - 1)
 
     logger.info(f"Starting parallel execution with {num_workers} workers.")
 
-    # Process in parallel
-    success_count = 0
-    fail_count = 0
+    # Open checkpoint file for appending
+    checkpoint_f = open(checkpoint_file, "a") if checkpoint_file else None
 
-    executor = ProcessPoolExecutor(max_workers=num_workers)
+    total_updated = 0
+
     try:
-        # Use a set to keep track of active futures
-        active_futures = set()
-        future_to_file = {}
-        
-        file_iterator = iter(files_to_process)
-        max_pending = num_workers * 2
-        
-        with tqdm(total=len(files_to_process), desc="Processing circuits") as pbar:
-            while True:
-                # Submit tasks until we reach max_pending or run out of files
-                while len(active_futures) < max_pending:
-                    try:
-                        file_path = next(file_iterator)
-                        future = executor.submit(process_circuit, file_path, mode)
-                        active_futures.add(future)
-                        future_to_file[future] = file_path
-                    except StopIteration:
-                        break
-                
-                if not active_futures:
-                    break
-                
-                # Wait for at least one task to complete
-                done, _ = wait(active_futures, return_when=FIRST_COMPLETED)
-                
-                for future in done:
-                    active_futures.remove(future)
-                    file_path = future_to_file.pop(future)
-                    
-                    try:
-                        result = future.result()
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            # Submit tasks per folder
+            future_to_folder = {}
+            for folder_name in subdirs:
+                folder_path = os.path.join(circuits_dir, folder_name)
+                # Get relevant processed hashes for this folder
+                folder_processed = processed_buckets.get(folder_name, set())
+
+                future = executor.submit(
+                    process_folder, folder_path, mode, folder_processed
+                )
+                future_to_folder[future] = folder_name
+
+            # Process results as folders complete
+            for future in tqdm(
+                as_completed(future_to_folder),
+                total=len(subdirs),
+                desc="Processing Folders",
+            ):
+                folder_name = future_to_folder[future]
+                try:
+                    folder_results = future.result()
+
+                    # Process results for this folder
+                    folder_updates_count = 0
+                    for result in folder_results:
+                        if limit and total_updated >= limit:
+                            break
+
                         circuit_hash = result["hash"]
+                        success = result["success"]
+                        updates = result["updates"]
+                        error = result["error"]
 
-                        if result["success"]:
-                            updates = result["updates"]
+                        if success and circuit_hash:
                             if verbose:
-                                logger.info(f"Updates for {circuit_hash}: {updates}")
+                                logger.info(f"Success {circuit_hash}: {updates.keys()}")
 
-                            # Update Azure Table (in main process)
+                            # Update Azure Table
                             try:
-                                success = update_circuit_metadata_in_table(
+                                table_success = update_circuit_metadata_in_table(
                                     table_client, circuit_hash, updates
                                 )
-                                if success:
-                                    success_count += 1
-                                    # Update checkpoint
-                                    if checkpoint_file:
-                                        with open(checkpoint_file, "a") as f:
-                                            f.write(f"{circuit_hash}\n")
+                                if table_success:
+                                    folder_updates_count += 1
+                                    total_updated += 1
+                                    if checkpoint_f:
+                                        checkpoint_f.write(f"{circuit_hash}\n")
                                 else:
                                     logger.warning(
                                         f"Failed to update table for {circuit_hash}"
                                     )
-                                    fail_count += 1
                             except Exception as e:
                                 logger.error(
-                                    f"Error updating table for {circuit_hash}: {e}"
+                                    f"Azure update error for {circuit_hash}: {e}"
                                 )
-                                fail_count += 1
-                        else:
-                            logger.warning(
-                                f"Simulation failed for {circuit_hash}: {result.get('error')}"
-                            )
-                            fail_count += 1
-                    except Exception as e:
-                        logger.error(f"Worker failed for {file_path}: {e}")
-                        fail_count += 1
 
-                    pbar.update(1)
+                        elif error and verbose:
+                            logger.warning(f"Failed {circuit_hash}: {error}")
+
+                    if checkpoint_f:
+                        checkpoint_f.flush()
+
+                    if limit and total_updated >= limit:
+                        logger.info(f"Limit of {limit} reached. Stopping.")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+
+                except Exception as e:
+                    logger.error(f"Error processing folder {folder_name}: {e}")
+
     except KeyboardInterrupt:
-        logger.warning("Interrupted by user. Shutting down workers...")
+        logger.info("Interrupted by user. Stopping...")
         executor.shutdown(wait=False, cancel_futures=True)
-        raise
     finally:
-        executor.shutdown(wait=True)
+        if checkpoint_f:
+            checkpoint_f.close()
 
-    logger.info(f"Rerun complete. Successful: {success_count}, Failed: {fail_count}")
+    logger.info(f"Rerun complete. Total circuits updated: {total_updated}")
 
 
 if __name__ == "__main__":
     config = PipelineConfig()
 
     parser = argparse.ArgumentParser(
-        description="Rerun simulations and update Azure Table in PARALLEL."
+        description="Rerun simulations in parallel (folder-based) and update Azure Table."
     )
     parser.add_argument(
-        "--circuits-dir",
-        type=str,
-        default=None,
-        help="Directory containing circuits.",
+        "--circuits-dir", type=str, default=None, help="Directory containing circuits."
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="Maximum number of circuits to process."
@@ -317,10 +345,7 @@ if __name__ == "__main__":
         help="File to store processed circuit hashes.",
     )
     parser.add_argument(
-        "--workers",
-        type=int,
-        default=None,
-        help="Number of worker processes (default: CPU count - 2).",
+        "--workers", type=int, default=None, help="Number of worker processes."
     )
 
     args = parser.parse_args()
@@ -330,7 +355,7 @@ if __name__ == "__main__":
     verbose = args.verbose
     mode = args.mode
     checkpoint_file = args.checkpoint_file
-    num_workers = args.workers
+    workers = args.workers
 
     # Interactive prompts if arguments are not provided
     if circuits_dir is None:
@@ -373,38 +398,25 @@ if __name__ == "__main__":
         except EOFError:
             mode = "auto"
 
-    if num_workers is None:
+    if workers is None:
         try:
-            default_workers = max(1, mp.cpu_count() - 2)
+            default_workers = max(1, multiprocessing.cpu_count() - 1)
             user_input = input(
                 f"Enter number of workers [default: {default_workers}]: "
             ).strip()
             if user_input:
-                try:
-                    num_workers = int(user_input)
-                except ValueError:
-                    print(f"Invalid number. Defaulting to {default_workers}.")
-                    num_workers = default_workers
+                workers = int(user_input)
             else:
-                num_workers = default_workers
-        except EOFError:
-            num_workers = None
-
-    if not verbose:
-        try:
-            user_input = input("Enable verbose mode? (y/N): ").strip().lower()
-            if user_input == "y":
-                verbose = True
-        except EOFError:
-            pass
+                workers = default_workers
+        except:
+            workers = None
 
     print(f"Circuits directory: {circuits_dir}")
     print(f"Limit: {limit if limit is not None else 'All'}")
     print(f"Mode: {mode}")
-    print(f"Verbose: {verbose}")
+    print(f"Workers: {workers}")
     print(f"Checkpoint File: {checkpoint_file}")
-    print(f"Workers: {num_workers if num_workers else 'Auto'}")
 
     rerun_simulations_parallel(
-        circuits_dir, limit, verbose, mode, checkpoint_file, num_workers
+        circuits_dir, limit, verbose, mode, checkpoint_file, workers
     )
