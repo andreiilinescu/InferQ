@@ -232,7 +232,12 @@ def rerun_simulations_parallel(
     logger.info(f"Starting parallel execution with {num_workers} workers.")
 
     # Open checkpoint file for appending
-    checkpoint_f = open(checkpoint_file, "a") if checkpoint_file else None
+    if checkpoint_file:
+        abs_checkpoint_path = os.path.abspath(checkpoint_file)
+        logger.info(f"Opening checkpoint file at: {abs_checkpoint_path}")
+        checkpoint_f = open(checkpoint_file, "a")
+    else:
+        checkpoint_f = None
 
     total_updated = 0
 
@@ -259,6 +264,10 @@ def rerun_simulations_parallel(
                 folder_name = future_to_folder[future]
                 try:
                     folder_results = future.result()
+                    if verbose:
+                        logger.info(
+                            f"Folder {folder_name} returned {len(folder_results)} results."
+                        )
 
                     # Process results for this folder
                     folder_updates_count = 0
@@ -281,13 +290,17 @@ def rerun_simulations_parallel(
                                     table_client, circuit_hash, updates
                                 )
                                 if table_success:
+                                    logger.info(
+                                        f"\n----Updated table for {circuit_hash}----\n"
+                                    )
                                     folder_updates_count += 1
                                     total_updated += 1
                                     if checkpoint_f:
                                         checkpoint_f.write(f"{circuit_hash}\n")
+                                        checkpoint_f.flush()
                                 else:
                                     logger.warning(
-                                        f"Failed to update table for {circuit_hash}"
+                                        f"Failed to update table for {circuit_hash} (table_success={table_success})"
                                     )
                             except Exception as e:
                                 logger.error(
