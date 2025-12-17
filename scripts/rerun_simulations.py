@@ -27,7 +27,7 @@ logging.getLogger("qiskit.compiler.transpiler").setLevel(logging.WARNING)
 
 
 class AsyncCheckpointWriter:
-    def __init__(self, filepath, batch_size=50):
+    def __init__(self, filepath, batch_size=20):
         self.filepath = filepath
         self.batch_size = batch_size
         self.buffer = []

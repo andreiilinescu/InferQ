@@ -384,9 +384,11 @@ class SimulationAnalyzer:
         entropy = -np.sum(probs * np.log2(probs))
         return float(entropy)
 
-    def _calculate_sparsity(self, probabilities: np.ndarray) -> float:
+    def _calculate_sparsity(
+        self, probabilities: np.ndarray, atol: float = 1e-10
+    ) -> float:
         """Calculate sparsity of a probability distribution."""
-        return float(np.count_nonzero(probabilities) / len(probabilities))
+        return float(np.count_nonzero(probabilities > atol) / len(probabilities))
 
     def _total_variation_distance(
         self, dist1: Dict[str, float], dist2: Dict[str, float]

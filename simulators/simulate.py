@@ -2,12 +2,10 @@ from qiskit import transpile
 from qiskit.circuit import QuantumCircuit
 from qiskit.result import Result
 from qiskit_aer import AerSimulator
-from qiskit.quantum_info import Statevector, DensityMatrix, Operator
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 import numpy as np
 from enum import Enum
 import logging
-from io import BytesIO
 import psutil
 import threading
 import time
