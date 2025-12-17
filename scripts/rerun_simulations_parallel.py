@@ -127,6 +127,7 @@ def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
     Worker function to process all circuits in a folder.
     Updates Azure Table and writes checkpoints immediately upon success.
     """
+    logger.info(f"Processing folder: {folder_path}")
     results = []
     try:
         # Initialize Simulator once per folder/worker
