@@ -1,12 +1,6 @@
 import os
 import sys
 
-# Set environment variables to limit threads per worker to avoid oversubscription
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["QISKIT_AER_PARALLEL_THREADS"] = "1"
-
 import argparse
 import logging
 import multiprocessing
