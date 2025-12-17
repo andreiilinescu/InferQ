@@ -92,20 +92,6 @@ class QuantumSimulator:
 
     def _initialize_simulators(self):
         """Initialize all available simulators"""
-        # Check if system has GPU
-        system_has_gpu = False
-        if self.device == "GPU":
-            try:
-                temp_sim = AerSimulator()
-                if "GPU" in temp_sim.available_devices():
-                    system_has_gpu = True
-                else:
-                    logger.warning(
-                        "GPU requested but not available on system. Using CPU."
-                    )
-            except Exception as e:
-                logger.warning(f"Error checking GPU availability: {e}. Using CPU.")
-
         # Methods that explicitly support GPU
         gpu_methods = {
             SimulationMethod.STATEVECTOR,
@@ -118,9 +104,8 @@ class QuantumSimulator:
             for method in SimulationMethod:
                 # Determine device for this specific method
                 method_device = "CPU"
-                if self.device == "GPU" and system_has_gpu:
-                    if method in gpu_methods:
-                        method_device = "GPU"
+                if self.device == "GPU" and method in gpu_methods:
+                    method_device = "GPU"
 
                 self.simulators[method] = AerSimulator(
                     method=method.value,
@@ -128,11 +113,11 @@ class QuantumSimulator:
                     seed_simulator=self.seed,
                     device=method_device,
                 )
+                logger.info(
+                    f"Initialized simulator for method {method.value} on device {method_device}"
+                )
 
-            logger.info(
-                f"Initialized {len(self.simulators)} simulators. "
-                f"GPU enabled: {system_has_gpu and self.device == 'GPU'}"
-            )
+            logger.info(f"Initialized {len(self.simulators)} simulators. ")
 
         except Exception as e:
             logger.error(f"Error initializing simulators: {e}")
