@@ -76,6 +76,7 @@ def rerun_simulations(
     verbose=False,
     mode="auto",
     checkpoint_file="rerun_checkpoint.txt",
+    use_gpu=False,
 ):
     """
     Reruns simulations for circuits in the specified directory and updates Azure Table.
@@ -111,7 +112,8 @@ def rerun_simulations(
         checkpoint_writer = AsyncCheckpointWriter(checkpoint_file)
 
     # Initialize Simulator
-    simulator = QuantumSimulator(timeout_seconds=60)  # Set a reasonable timeout
+    device = "GPU" if use_gpu else "CPU"
+    simulator = QuantumSimulator(timeout_seconds=60, device=device)  # Set a reasonable timeout
 
     # Identify folders to process
     try:
@@ -294,6 +296,7 @@ if __name__ == "__main__":
         default="rerun_checkpoint.txt",
         help="File to store processed circuit hashes.",
     )
+    parser.add_argument("--gpu", action="store_true", help="Enable GPU acceleration.")
 
     args = parser.parse_args()
 
@@ -302,6 +305,7 @@ if __name__ == "__main__":
     verbose = args.verbose
     mode = args.mode
     checkpoint_file = args.checkpoint_file
+    use_gpu = args.gpu
 
     # Interactive prompts if arguments are not provided
     if circuits_dir is None:
@@ -352,10 +356,19 @@ if __name__ == "__main__":
         except EOFError:
             pass
 
+    if not use_gpu:
+        try:
+            user_input = input("Enable GPU acceleration? (y/N): ").strip().lower()
+            if user_input == "y":
+                use_gpu = True
+        except EOFError:
+            pass
+
     print(f"Circuits directory: {circuits_dir}")
     print(f"Limit: {limit if limit is not None else 'All'}")
     print(f"Mode: {mode}")
     print(f"Verbose: {verbose}")
     print(f"Checkpoint File: {checkpoint_file}")
+    print(f"GPU Enabled: {use_gpu}")
 
-    rerun_simulations(circuits_dir, limit, verbose, mode, checkpoint_file)
+    rerun_simulations(circuits_dir, limit, verbose, mode, checkpoint_file, use_gpu)

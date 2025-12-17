@@ -72,6 +72,7 @@ class QuantumSimulator:
         shots: int | None = None,
         seed: Optional[int] = None,
         timeout_seconds: Optional[int] = None,
+        device: str = "CPU",
     ):
         """
         Initialize the quantum simulator.
@@ -80,22 +81,58 @@ class QuantumSimulator:
             shots: Number of shots for sampling-based simulations
             seed: Random seed for reproducible results
             timeout_seconds: Maximum time allowed for simulation (in seconds)
+            device: Device to run simulations on ("CPU" or "GPU")
         """
         self.shots = shots
         self.seed = seed
         self.timeout_seconds = timeout_seconds
+        self.device = device
         self.simulators = {}
         self._initialize_simulators()
 
     def _initialize_simulators(self):
         """Initialize all available simulators"""
+        # Check if system has GPU
+        system_has_gpu = False
+        if self.device == "GPU":
+            try:
+                temp_sim = AerSimulator()
+                if "GPU" in temp_sim.available_devices():
+                    system_has_gpu = True
+                else:
+                    logger.warning(
+                        "GPU requested but not available on system. Using CPU."
+                    )
+            except Exception as e:
+                logger.warning(f"Error checking GPU availability: {e}. Using CPU.")
+
+        # Methods that explicitly support GPU
+        gpu_methods = {
+            SimulationMethod.STATEVECTOR,
+            SimulationMethod.DENSITY_MATRIX,
+            SimulationMethod.UNITARY,
+            SimulationMethod.AUTOMATIC,
+        }
+
         try:
             for method in SimulationMethod:
+                # Determine device for this specific method
+                method_device = "CPU"
+                if self.device == "GPU" and system_has_gpu:
+                    if method in gpu_methods:
+                        method_device = "GPU"
+
                 self.simulators[method] = AerSimulator(
-                    method=method.value, shots=self.shots, seed_simulator=self.seed
+                    method=method.value,
+                    shots=self.shots,
+                    seed_simulator=self.seed,
+                    device=method_device,
                 )
 
-            logger.info(f"Initialized {len(self.simulators)} simulators")
+            logger.info(
+                f"Initialized {len(self.simulators)} simulators. "
+                f"GPU enabled: {system_has_gpu and self.device == 'GPU'}"
+            )
 
         except Exception as e:
             logger.error(f"Error initializing simulators: {e}")
