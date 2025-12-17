@@ -15,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.azure_connection import AzureConnection
 from utils.table_storage import update_circuit_metadata_in_table
+from utils.checkpoint_writer import AsyncCheckpointWriter
 from simulators.simulate import QuantumSimulator
 from config import PipelineConfig
 
@@ -121,14 +122,27 @@ def process_circuit_file(file_path, mode, simulator):
         }
 
 
-def process_folder(folder_path, mode, processed_hashes):
+def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
     """
     Worker function to process all circuits in a folder.
+    Updates Azure Table and writes checkpoints immediately upon success.
     """
     results = []
     try:
         # Initialize Simulator once per folder/worker
         simulator = QuantumSimulator(timeout_seconds=60)
+
+        # Initialize Azure Connection once per folder/worker
+        try:
+            azure_conn = AzureConnection()
+            table_client = azure_conn.circuits_table_client
+        except Exception as e:
+            logger.error(f"Failed to connect to Azure in worker: {e}")
+            return []
+
+        # Prepare checkpoint file
+        folder_name = os.path.basename(folder_path)
+        checkpoint_path = os.path.join(checkpoints_dir, f"{folder_name}.txt")
 
         # List files in the folder
         try:
@@ -136,21 +150,39 @@ def process_folder(folder_path, mode, processed_hashes):
         except FileNotFoundError:
             return []
 
-        for filename in files:
-            # Memory Hold-off
-            while psutil.virtual_memory().percent > MEMORY_THRESHOLD_PERCENT:
-                # Sleep to let memory clear up
-                time.sleep(MEMORY_CHECK_INTERVAL)
+        # Open checkpoint file for appending
+        with open(checkpoint_path, "a") as checkpoint_f:
+            for filename in files:
+                # Memory Hold-off
+                while psutil.virtual_memory().percent > MEMORY_THRESHOLD_PERCENT:
+                    # Sleep to let memory clear up
+                    time.sleep(MEMORY_CHECK_INTERVAL)
 
-            circuit_hash = os.path.splitext(filename)[0]
+                circuit_hash = os.path.splitext(filename)[0]
 
-            # Skip if already processed
-            if circuit_hash in processed_hashes:
-                continue
+                # Skip if already processed
+                if circuit_hash in processed_hashes:
+                    continue
 
-            file_path = os.path.join(folder_path, filename)
-            result = process_circuit_file(file_path, mode, simulator)
-            results.append(result)
+                file_path = os.path.join(folder_path, filename)
+                result = process_circuit_file(file_path, mode, simulator)
+
+                # If successful, update table and write checkpoint immediately
+                if result["success"]:
+                    try:
+                        table_success = update_circuit_metadata_in_table(
+                            table_client, circuit_hash, result["updates"]
+                        )
+                        result["table_updated"] = table_success
+                        if table_success:
+                            checkpoint_f.write(f"{circuit_hash}\n")
+                            checkpoint_f.flush()
+                    except Exception as e:
+                        logger.error(f"Azure update error for {circuit_hash}: {e}")
+                        result["table_updated"] = False
+                        result["error"] = f"Azure update failed: {e}"
+
+                results.append(result)
 
     except Exception as e:
         logger.error(f"Error processing folder {folder_path}: {e}")
@@ -163,7 +195,7 @@ def rerun_simulations_parallel(
     limit=None,
     verbose=False,
     mode="auto",
-    checkpoint_file="rerun_checkpoint.txt",
+    checkpoints_dir="checkpoints",
     num_workers=None,
 ):
     if not os.path.exists(circuits_dir):
@@ -179,17 +211,32 @@ def rerun_simulations_parallel(
         logger.error(f"Failed to connect to Azure: {e}")
         return
 
-    # Load checkpoint
+    # Load checkpoints from directory
     processed_hashes = set()
-    if checkpoint_file and os.path.exists(checkpoint_file):
-        try:
-            with open(checkpoint_file, "r") as f:
-                processed_hashes = set(line.strip() for line in f if line.strip())
-            logger.info(
-                f"Loaded checkpoint. {len(processed_hashes)} circuits already processed."
-            )
-        except Exception as e:
-            logger.error(f"Failed to load checkpoint: {e}")
+    if checkpoints_dir:
+        if not os.path.exists(checkpoints_dir):
+            try:
+                os.makedirs(checkpoints_dir)
+                logger.info(f"Created checkpoints directory: {checkpoints_dir}")
+            except Exception as e:
+                logger.error(f"Failed to create checkpoints directory: {e}")
+                return
+        else:
+            # Load existing checkpoints
+            try:
+                for filename in os.listdir(checkpoints_dir):
+                    if filename.endswith(".txt"):
+                        filepath = os.path.join(checkpoints_dir, filename)
+                        with open(filepath, "r") as f:
+                            file_hashes = set(
+                                line.strip() for line in f if line.strip()
+                            )
+                            processed_hashes.update(file_hashes)
+                logger.info(
+                    f"Loaded checkpoints. {len(processed_hashes)} circuits already processed."
+                )
+            except Exception as e:
+                logger.error(f"Failed to load checkpoints: {e}")
 
     # Bucket processed hashes by folder prefix (first 2 chars)
     processed_buckets = {}
@@ -225,14 +272,6 @@ def rerun_simulations_parallel(
 
     logger.info(f"Starting parallel execution with {num_workers} workers.")
 
-    # Open checkpoint file for appending
-    if checkpoint_file:
-        abs_checkpoint_path = os.path.abspath(checkpoint_file)
-        logger.info(f"Opening checkpoint file at: {abs_checkpoint_path}")
-        checkpoint_f = open(checkpoint_file, "a")
-    else:
-        checkpoint_f = None
-
     total_updated = 0
 
     try:
@@ -245,7 +284,7 @@ def rerun_simulations_parallel(
                 folder_processed = processed_buckets.get(folder_name, set())
 
                 future = executor.submit(
-                    process_folder, folder_path, mode, folder_processed
+                    process_folder, folder_path, mode, folder_processed, checkpoints_dir
                 )
                 future_to_folder[future] = folder_name
 
@@ -263,49 +302,19 @@ def rerun_simulations_parallel(
                             f"Folder {folder_name} returned {len(folder_results)} results."
                         )
 
-                    # Process results for this folder
-                    folder_updates_count = 0
+                    # Process results for this folder (just for stats now)
                     for result in folder_results:
                         if limit and total_updated >= limit:
                             break
 
-                        circuit_hash = result["hash"]
-                        success = result["success"]
-                        updates = result["updates"]
-                        error = result["error"]
-
-                        if success and circuit_hash:
+                        if result.get("table_updated", False):
+                            total_updated += 1
                             if verbose:
-                                logger.info(f"Success {circuit_hash}: {updates.keys()}")
-
-                            # Update Azure Table
-                            try:
-                                table_success = update_circuit_metadata_in_table(
-                                    table_client, circuit_hash, updates
-                                )
-                                if table_success:
-                                    logger.info(
-                                        f"\n----Updated table for {circuit_hash}----\n"
-                                    )
-                                    folder_updates_count += 1
-                                    total_updated += 1
-                                    if checkpoint_f:
-                                        checkpoint_f.write(f"{circuit_hash}\n")
-                                        checkpoint_f.flush()
-                                else:
-                                    logger.warning(
-                                        f"Failed to update table for {circuit_hash} (table_success={table_success})"
-                                    )
-                            except Exception as e:
-                                logger.error(
-                                    f"Azure update error for {circuit_hash}: {e}"
-                                )
-
-                        elif error and verbose:
-                            logger.warning(f"Failed {circuit_hash}: {error}")
-
-                    if checkpoint_f:
-                        checkpoint_f.flush()
+                                logger.info(f"Success {result['hash']}")
+                        elif result.get("error") and verbose:
+                            logger.warning(
+                                f"Failed {result['hash']}: {result['error']}"
+                            )
 
                     if limit and total_updated >= limit:
                         logger.info(f"Limit of {limit} reached. Stopping.")
@@ -318,9 +327,6 @@ def rerun_simulations_parallel(
     except KeyboardInterrupt:
         logger.info("Interrupted by user. Stopping...")
         executor.shutdown(wait=False, cancel_futures=True)
-    finally:
-        if checkpoint_f:
-            checkpoint_f.close()
 
     logger.info(f"Rerun complete. Total circuits updated: {total_updated}")
 
@@ -346,10 +352,10 @@ if __name__ == "__main__":
         help="Simulation mode: 'auto' or 'all'.",
     )
     parser.add_argument(
-        "--checkpoint-file",
+        "--checkpoints-dir",
         type=str,
-        default="rerun_checkpoint.txt",
-        help="File to store processed circuit hashes.",
+        default="checkpoints",
+        help="Directory to store processed circuit hashes per folder.",
     )
     parser.add_argument(
         "--workers", type=int, default=None, help="Number of worker processes."
@@ -361,7 +367,7 @@ if __name__ == "__main__":
     limit = args.limit
     verbose = args.verbose
     mode = args.mode
-    checkpoint_file = args.checkpoint_file
+    checkpoints_dir = args.checkpoints_dir
     workers = args.workers
 
     # Interactive prompts if arguments are not provided
@@ -422,8 +428,8 @@ if __name__ == "__main__":
     print(f"Limit: {limit if limit is not None else 'All'}")
     print(f"Mode: {mode}")
     print(f"Workers: {workers}")
-    print(f"Checkpoint File: {checkpoint_file}")
+    print(f"Checkpoints Directory: {checkpoints_dir}")
 
     rerun_simulations_parallel(
-        circuits_dir, limit, verbose, mode, checkpoint_file, workers
+        circuits_dir, limit, verbose, mode, checkpoints_dir, workers
     )
