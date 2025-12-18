@@ -3,7 +3,8 @@ from azure.data.tables import TableClient
 # 💡 IMPORT THIS NEW CLASS
 from azure.core.credentials import AzureNamedKeyCredential 
 from typing import List, Dict, Any
-
+from tqdm import tqdm
+from itertools import islice
 # --- Configuration (Keep your values here) ---
 # using variables from .env file in same directory
 from dotenv import load_dotenv
@@ -54,14 +55,18 @@ def fetch_table_data(account_name: str, account_key: str, table_name: str, row_l
             top=row_limit
         )
         # # Use a list comprehension to efficiently fetch the top N entities
-        entities_list = [dict(entity) for i, entity in enumerate(entities_generator) if i < row_limit]
-
+        # entities_list = [dict(entity) for i, entity in enumerate(entities_generator) if i < row_limit]
+        # Use a loop with tqdm to show progress while fetching the top N entities
+        entities_list = []
+        for entity in tqdm(islice(entities_generator, row_limit), total=row_limit, desc="Fetching entities"):
+            entities_list.append(dict(entity))
+        
         print(f"Successfully fetched {len(entities_list)} entities.")
         # print(entities_list)
         # Let us store in a csv file
         df = pd.DataFrame(entities_list)
-        df.to_csv(f"{table_name}_data.csv", index=False)
-        print(f"Data saved to {table_name}_data.csv")
+        df.to_csv(f"{table_name}_data{row_limit}.csv", index=False)
+        print(f"Data saved to {table_name}_data{row_limit}.csv")
         return entities_list
         
     except Exception as e:
@@ -69,4 +74,4 @@ def fetch_table_data(account_name: str, account_key: str, table_name: str, row_l
         return []
 
 if __name__ == "__main__":
-    fetch_table_data(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY, TABLE_NAME, row_limit=100)
+    fetch_table_data(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY, TABLE_NAME, row_limit=100000)

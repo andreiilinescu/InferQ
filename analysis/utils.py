@@ -1,0 +1,136 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+def get_time_columns(df: pd.DataFrame) -> list:
+    """Returns a list of columns in the DataFrame that are of datetime type."""
+    return [col for col in df.columns if 'execution_time' in col.lower()]
+
+
+def plot_execution_times(df: pd.DataFrame, time_columns: list):
+    """Plots execution times from the specified columns in the DataFrame."""
+    plt.figure(figsize=(12, 6))
+    for col in time_columns:
+        sns.lineplot(data=df, x=df.index, y=col, label=col)
+    plt.xlabel('Index')
+    plt.ylabel('Execution Time')
+    plt.title('Execution Times Over Entries')
+    plt.legend()
+    plt.show()
+
+def calculate_average_times(df: pd.DataFrame, time_columns: list) -> pd.Series:
+    """Calculates the average execution time for each specified column."""
+    return df[time_columns].mean()
+
+def plot_entropy_bin_times(data: pd.DataFrame, time_columns: list, bins : int = 10):
+    """Plots entropy bin times if the relevant columns exist in the DataFrame."""
+    # Let us see the timings for different algorithms for circuits with specific properties
+    # and see if there are any trends or patterns regarding entrpopy. Again let us only take rows which have entropy values, not None or NaN
+    # let us plot how many times each algorithm was the fastest for circuits with different entropy ranges
+    entropy_data = data.dropna(subset=['statevector_saved_entropy'])
+    entropy_bins = np.linspace(entropy_data['statevector_saved_entropy'].min(), entropy_data['statevector_saved_entropy'].max(), bins)
+    entropy_data['entropy_bin'] = pd.cut(entropy_data['statevector_saved_entropy'], bins=entropy_bins)
+    fastest_counts = {col: [] for col in time_columns}
+    bin_labels = []
+    for bin_range in entropy_data['entropy_bin'].cat.categories:
+        bin_subset = entropy_data[entropy_data['entropy_bin'] == bin_range]
+        if bin_subset.empty:
+            continue
+        bin_labels.append(f"{bin_range.left:.2f}-{bin_range.right:.2f}")
+        fastest_algo = bin_subset[time_columns].idxmin(axis=1)
+        for col in time_columns:
+            count = (fastest_algo == col).sum()
+            fastest_counts[col].append(count)
+    plt.figure(figsize=(10, 6))
+    bottom = np.zeros(len(bin_labels))
+    for col in time_columns:
+        plt.bar(bin_labels, fastest_counts[col], bottom=bottom, label=col)
+        bottom += np.array(fastest_counts[col])
+    plt.title('Number of Times Each Algorithm was Fastest vs Entropy Bins')
+    plt.xlabel('Entropy Bins')
+    plt.ylabel('Number of Times Fastest')
+    # puting the legend outside the plot
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+    return bin_labels, fastest_counts
+
+def plot_bin_times_percentage(bin_labels, fastest_counts, time_columns: list = None, label = ""):
+    # Plot the percentage of times each algorithm was the fastest for circuits with different entropy ranges
+    plt.figure(figsize=(10, 6))
+    bottom = np.zeros(len(bin_labels))
+    # stack counts to compute totals per bin
+    stacked = np.vstack([np.array(fastest_counts[col]) for col in time_columns])
+    total_counts = np.sum(stacked, axis=0)
+    # avoid division by zero
+    total_counts_safe = np.where(total_counts == 0, 1, total_counts)
+    for i, col in enumerate(time_columns):
+        percentages = np.array(fastest_counts[col]) / total_counts_safe * 100
+        plt.bar(bin_labels, percentages, bottom=bottom, label=col)
+        bottom += percentages
+    plt.title(f'Percentage of Times Each Algorithm was Fastest vs {label} Bins')
+    plt.xlabel(f'{label} Bins')
+    plt.ylabel('Percentage of Times Fastest')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+# Let us have these functions with sparsity too:
+def plot_sparsity_bin_times(data: pd.DataFrame, time_columns: list, bins : int = 10):
+    """Plots sparsity bin times if the relevant columns exist in the DataFrame."""
+    # Let us see the timings for different algorithms for circuits with specific properties
+    # and see if there are any trends or patterns regarding sparsity. Again let us only take rows which have sparsity values, not None or NaN
+    # let us plot how many times each algorithm was the fastest for circuits with different sparsity ranges
+    sparsity_data = data.dropna(subset=['statevector_saved_sparsity'])
+    sparsity_bins = np.linspace(sparsity_data['statevector_saved_sparsity'].min(), sparsity_data['statevector_saved_sparsity'].max(), bins)
+    sparsity_data['sparsity_bin'] = pd.cut(sparsity_data['statevector_saved_sparsity'], bins=sparsity_bins)
+    fastest_counts = {col: [] for col in time_columns}
+    bin_labels = []
+    for bin_range in sparsity_data['sparsity_bin'].cat.categories:
+        bin_subset = sparsity_data[sparsity_data['sparsity_bin'] == bin_range]
+        if bin_subset.empty:
+            continue
+        bin_labels.append(f"{bin_range.left:.2f}-{bin_range.right:.2f}")
+        fastest_algo = bin_subset[time_columns].idxmin(axis=1)
+        for col in time_columns:
+            count = (fastest_algo == col).sum()
+            fastest_counts[col].append(count)
+    plt.figure(figsize=(10, 6))
+    bottom = np.zeros(len(bin_labels))
+    for col in time_columns:
+        plt.bar(bin_labels, fastest_counts[col], bottom=bottom, label=col)
+        bottom += np.array(fastest_counts[col])
+    plt.title('Number of Times Each Algorithm was Fastest vs sparsity Bins')
+    plt.xlabel('sparsity Bins')
+    plt.ylabel('Number of Times Fastest')
+    # puting the legend outside the plot
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+    return bin_labels, fastest_counts
+
+def make_histogram_grid(data : pd.DataFrame, features_list : list, title_prefix : str):
+    n = len(features_list)
+    if n == 0:
+        print(f"No numeric features to plot histograms for {title_prefix}.")
+        return
+    ncols = int(np.ceil(np.sqrt(n)))
+    nrows = int(np.ceil(n / ncols))
+    figsize = (4 * ncols, 3 * nrows)
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
+    axes_flat = axes.flatten()
+    for i, feature in enumerate(features_list):
+        ax = axes_flat[i]
+        sns.histplot(data=data, x=feature, bins=20, kde=False, ax=ax)
+        ax.set_title(f"Histogram of {feature}")
+        ax.set_xlabel(feature)
+        ax.set_ylabel("Count")
+    # hide any unused axes
+    for j in range(n, len(axes_flat)):
+        axes_flat[j].set_visible(False)
+    plt.tight_layout()
+    plt.show()
