@@ -24,3 +24,5 @@ circuit_hashes_cache.json
 pipeline.log
 
 venv
+
+*.csv
