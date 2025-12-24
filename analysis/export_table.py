@@ -73,5 +73,21 @@ def fetch_table_data(account_name: str, account_key: str, table_name: str, row_l
         print(f"An error occurred: {e}")
         return []
 
+# if __name__ == "__main__":
+#     fetch_table_data(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY, TABLE_NAME, row_limit=400000)
+
+import sys
+
 if __name__ == "__main__":
-    fetch_table_data(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY, TABLE_NAME, row_limit=100000)
+    if len(sys.argv) < 2:
+        print("Usage: python script.py <row_limit>")
+        sys.exit(1)
+
+    row_limit = int(sys.argv[1])
+
+    fetch_table_data(
+        STORAGE_ACCOUNT_NAME,
+        STORAGE_ACCOUNT_KEY,
+        TABLE_NAME,
+        row_limit=row_limit
+    )

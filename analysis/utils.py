@@ -5,7 +5,7 @@ import numpy as np
 
 def get_time_columns(df: pd.DataFrame) -> list:
     """Returns a list of columns in the DataFrame that are of datetime type."""
-    return [col for col in df.columns if 'execution_time' in col.lower()]
+    return [col for col in df.columns if '_execution_time' in col.lower()]
 
 
 def plot_execution_times(df: pd.DataFrame, time_columns: list):
@@ -132,5 +132,48 @@ def make_histogram_grid(data : pd.DataFrame, features_list : list, title_prefix 
     # hide any unused axes
     for j in range(n, len(axes_flat)):
         axes_flat[j].set_visible(False)
+    plt.tight_layout()
+    plt.show()
+
+def plot_best_method_hists(METHODS, FEATURES, df_clean):
+    
+    n_rows = len(FEATURES)
+    n_cols = len(METHODS)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(4 * n_cols, 3 * n_rows),
+        sharex=False,
+        sharey=False
+    )
+
+    for i, feature in enumerate(FEATURES):
+        for j, method in enumerate(METHODS):
+            ax = axes[i, j]
+
+            subset = df_clean[df_clean["best_method"] == method]
+            col = feature
+
+            if col in subset.columns and not subset.empty:
+                data = subset[col].dropna()
+
+                if len(data) > 0:
+                    sns.histplot(
+                        data,
+                        bins=30,
+                        kde=True,
+                        ax=ax
+                    )
+
+            if i == 0:
+                ax.set_title(method, fontsize=10)
+
+            if j == 0:
+                ax.set_ylabel(feature, fontsize=10)
+            else:
+                ax.set_ylabel("")
+
+            ax.set_xlabel("")
+
     plt.tight_layout()
     plt.show()
