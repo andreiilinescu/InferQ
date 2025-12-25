@@ -41,15 +41,6 @@ def fetch_table_data(account_name: str, account_key: str, table_name: str, row_l
         
         print(f"Querying the first {row_limit} entities...")
         
-        # p_key = "circuits"
-        # r_key = "00002c67d57d2eb0a9f99dad03225b2fce0652319b1712044e5bfb2690427039"
-        # Query the entities using the generator
-
-        # entity = table_client.get_entity(
-        #     partition_key=p_key,
-        #     row_key=r_key
-        # )
-        # getting first entity only
         entities_generator = table_client.query_entities(
             query_filter="",
             top=row_limit
@@ -78,12 +69,14 @@ def fetch_table_data(account_name: str, account_key: str, table_name: str, row_l
 
 import sys
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python script.py <row_limit>")
-        sys.exit(1)
+DEFAULT_ROW_LIMIT = 414820  # whole dataset
 
-    row_limit = int(sys.argv[1])
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        row_limit = int(sys.argv[1])
+    else:
+        row_limit = DEFAULT_ROW_LIMIT
+        print(f"No row_limit provided, using default: {row_limit}")
 
     fetch_table_data(
         STORAGE_ACCOUNT_NAME,
