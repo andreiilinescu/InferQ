@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils.azure_connection import AzureConnection
 from utils.table_storage import update_circuit_metadata_in_table
 from utils.checkpoint_writer import AsyncCheckpointWriter
-from simulators.simulate import QuantumSimulator
+from simulators.simulate import QuantumSimulator, SimulationMethod
 from config import PipelineConfig
 
 # Setup logging
@@ -197,7 +197,42 @@ def rerun_simulations(
                                     updates[f"{prefix}_sparsity"] = data["sparsity"]
                                 if result.get("method") == "automatic":
                                     updates["automatic_method"] = data["actual_method"]
+                                
+                                # Handle InfiniQuantumSim benchmark results if present in 'all' mode
+                                if method_name == "infiniquantum" and "benchmark_results" in result:
+                                    for bench_method, bench_data in result["benchmark_results"].items():
+                                        if isinstance(bench_data, dict):
+                                            if "memory_avg_mb" in bench_data:
+                                                updates[f"iqs_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                                            if "time_avg_s" in bench_data:
+                                                updates[f"iqs_{bench_method}_time_s"] = bench_data["time_avg_s"]
+
+                elif mode == "rdbms":
+                    logger.info(f"Simulating {circuit_hash} (InfiniQuantumSim)...")
+                    # Run only InfiniQuantumSim
+                    # Enable DuckDB by excluding it from oom list (skip list)
+                    # We skip psql and sqlite by default as they might not be configured
+                    result = simulator._run_simulation(
+                        qc, 
+                        SimulationMethod.INFINI_QUANTUM, 
+                        oom=["psql", "sqlite", "eqc"]
+                    )
+                    
+                    if result.get("success", False):
+                        success_flag = True
+                        updates["infiniquantum_execution_time"] = result.get("execution_time")
+                        
+                        if "benchmark_results" in result:
+                            for bench_method, bench_data in result["benchmark_results"].items():
+                                if isinstance(bench_data, dict):
+                                    if "memory_avg_mb" in bench_data:
+                                        updates[f"iqs_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                                    if "time_avg_s" in bench_data:
+                                        updates[f"iqs_{bench_method}_time_s"] = bench_data["time_avg_s"]
                     else:
+                        logger.warning(f"InfiniQuantumSim failed for {circuit_hash}: {result.get('error')}")
+
+                if success_flag:
                         logger.warning(f"All simulations failed for {circuit_hash}")
 
                 if success_flag and updates:
@@ -245,9 +280,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["auto", "all"],
+        choices=["auto", "all", "rdbms"],
         default=None,
-        help="Simulation mode: 'auto' or 'all'.",
+        help="Simulation mode: 'auto', 'all' or 'rdbms'.",
     )
     parser.add_argument(
         "--checkpoint-file",
@@ -296,16 +331,20 @@ if __name__ == "__main__":
     if mode is None:
         try:
             user_input = (
-                input("Enter simulation mode (auto/all) [default: all]: ")
+                input("Enter simulation mode (auto/all/rdbms) [default: all]: ")
                 .strip()
                 .lower()
             )
-            if user_input in ["auto", "all"]:
+            if user_input in ["auto", "all", "rdbms"]:
                 mode = user_input
             else:
                 mode = "all"
         except EOFError:
             mode = "all"
+    
+    # Set default checkpoint file for rdbms mode if not specified
+    if mode == "rdbms" and checkpoint_file == "rerun_checkpoint.txt":
+        checkpoint_file = "rerun_checkpoint_rdbms.txt"
 
     if not verbose:
         try:
