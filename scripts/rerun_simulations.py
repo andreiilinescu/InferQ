@@ -203,9 +203,9 @@ def rerun_simulations(
                                     for bench_method, bench_data in result["benchmark_results"].items():
                                         if isinstance(bench_data, dict):
                                             if "memory_avg_mb" in bench_data:
-                                                updates[f"iqs_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                                                updates[f"rdbms_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
                                             if "time_avg_s" in bench_data:
-                                                updates[f"iqs_{bench_method}_time_s"] = bench_data["time_avg_s"]
+                                                updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
 
                 elif mode == "rdbms":
                     logger.info(f"Simulating {circuit_hash} (InfiniQuantumSim)...")
@@ -220,15 +220,15 @@ def rerun_simulations(
                     
                     if result.get("success", False):
                         success_flag = True
-                        updates["infiniquantum_execution_time"] = result.get("execution_time")
+                        updates["rdbms_execution_time"] = result.get("execution_time")
                         
                         if "benchmark_results" in result:
                             for bench_method, bench_data in result["benchmark_results"].items():
                                 if isinstance(bench_data, dict):
                                     if "memory_avg_mb" in bench_data:
-                                        updates[f"iqs_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                                        updates[f"rdbms_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
                                     if "time_avg_s" in bench_data:
-                                        updates[f"iqs_{bench_method}_time_s"] = bench_data["time_avg_s"]
+                                        updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
                     else:
                         logger.warning(f"InfiniQuantumSim failed for {circuit_hash}: {result.get('error')}")
 
