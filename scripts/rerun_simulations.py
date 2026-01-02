@@ -215,7 +215,7 @@ def rerun_simulations(
                     result = simulator._run_simulation(
                         qc, 
                         SimulationMethod.INFINI_QUANTUM, 
-                        oom=["psql", "sqlite", "eqc"]
+                        oom=["psql", "eqc"]
                     )
                     
                     if result.get("success", False):

@@ -52,8 +52,9 @@ def process_circuit_file(file_path, mode, simulator):
 
         updates = {}
         success_flag = False
+        skipped_flag = False
         error_msg = None
-
+        logger.info(f"Simulating circuit {circuit_hash} in mode {mode}")
         if mode == "auto":
             result = simulator.simulate_auto(qc)
             if result["success"]:
@@ -70,6 +71,9 @@ def process_circuit_file(file_path, mode, simulator):
                     "automatic_transpiled_size": result.get("transpiled_circuit_size"),
                     "automatic_transpiled_qubits": result.get("transpiled_num_qubits"),
                 }
+            elif result.get("skipped"):
+                skipped_flag = True
+                error_msg = result.get("error")
             else:
                 error_msg = result.get("error")
 
@@ -111,6 +115,9 @@ def process_circuit_file(file_path, mode, simulator):
                                     if "time_avg_s" in bench_data:
                                         updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
 
+            elif any(r.get("skipped", False) for r in results.values()):
+                skipped_flag = True
+                error_msg = "Simulations skipped"
             else:
                 error_msg = "All simulations failed"
 
@@ -121,7 +128,7 @@ def process_circuit_file(file_path, mode, simulator):
             result = simulator._run_simulation(
                 qc, 
                 SimulationMethod.INFINI_QUANTUM, 
-                oom=["psql", "sqlite", "eqc"]
+                oom=["psql", "eqc"]
             )
             
             if result.get("success", False):
@@ -135,12 +142,16 @@ def process_circuit_file(file_path, mode, simulator):
                                 updates[f"rdbms_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
                             if "time_avg_s" in bench_data:
                                 updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
+            elif result.get("skipped"):
+                skipped_flag = True
+                error_msg = result.get("error")
             else:
                 error_msg = result.get("error")
 
         return {
             "hash": circuit_hash,
             "success": success_flag,
+            "skipped": skipped_flag,
             "updates": updates,
             "error": error_msg,
             "file_path": file_path,
@@ -165,7 +176,10 @@ def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
     results = []
     try:
         # Initialize Simulator once per folder/worker
-        simulator = QuantumSimulator(timeout_seconds=60)
+        sim_config = PipelineConfig.SIMULATION
+        simulator = QuantumSimulator(
+            timeout_seconds=sim_config.get("timeout_seconds", 60)
+        )
 
         # Initialize Azure Connection once per folder/worker
         try:
@@ -216,6 +230,11 @@ def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
                         logger.error(f"Azure update error for {circuit_hash}: {e}")
                         result["table_updated"] = False
                         result["error"] = f"Azure update failed: {e}"
+                elif result.get("skipped"):
+                    # If skipped (e.g. timeout or too complex), write to checkpoint so we don't retry
+                    logger.info(f"Skipping {circuit_hash}: {result.get('error')}")
+                    checkpoint_f.write(f"{circuit_hash}\n")
+                    checkpoint_f.flush()
 
                 results.append(result)
 
