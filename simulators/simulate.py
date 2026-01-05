@@ -6,8 +6,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 from enum import Enum
 import logging
-import psutil
-import threading
+import tracemalloc
 import time
 import numpy as np
 import multiprocessing
@@ -21,40 +20,10 @@ except ImportError as e:
     print(f"DEBUG: InfiniQuantumSim import failed: {e}")
     INFINI_QUANTUM_AVAILABLE = False
 
+INFINI_QUANTUM_AVAILABLE=False
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-class MemoryMonitor(threading.Thread):
-    def __init__(self, interval=0.01):
-        super().__init__()
-        self.interval = interval
-        self.process = psutil.Process()
-        self.running = True
-        self.max_memory = 0
-        self.start_memory = 0
-
-    def run(self):
-        try:
-            self.start_memory = self.process.memory_info().rss
-            self.max_memory = self.start_memory
-            while self.running:
-                try:
-                    mem = self.process.memory_info().rss
-                    if mem > self.max_memory:
-                        self.max_memory = mem
-                except:
-                    pass
-                time.sleep(self.interval)
-        except:
-            pass
-
-    def stop(self):
-        self.running = False
-
-    def get_peak_memory_mb(self):
-        return self.max_memory / (1024 * 1024)
 
 
 class SimulationMethod(Enum):
@@ -575,10 +544,12 @@ class QuantumSimulator:
             logger.debug(f"Executing {method.value} simulation...")
 
             # Start memory monitoring
-            memory_monitor = MemoryMonitor()
-            memory_monitor.start()
+            tracemalloc.start()
+            tracemalloc.clear_traces()
+            mem_tic, _ = tracemalloc.get_traced_memory()
 
             start_time = time.time()
+            mem_toc = 0
 
             try:
                 # Run simulation with job-level timeout
@@ -609,10 +580,10 @@ class QuantumSimulator:
                     # Re-raise non-timeout errors
                     raise timeout_error
             finally:
-                memory_monitor.stop()
-                memory_monitor.join()
+                _, mem_toc = tracemalloc.get_traced_memory()
+                tracemalloc.stop()
 
-            measured_memory_mb = memory_monitor.get_peak_memory_mb()
+            measured_memory_mb = (mem_toc - mem_tic) / (1024 * 1024)
 
             # Extract relevant information based on method
             logger.debug(f"Extracting simulation data for {method.value}...")
