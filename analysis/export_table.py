@@ -10,8 +10,8 @@ from itertools import islice
 from dotenv import load_dotenv
 import os
 load_dotenv()
-STORAGE_ACCOUNT_NAME = os.getenv("STORAGE_ACCOUNT_NAME")
-STORAGE_ACCOUNT_KEY = os.getenv("STORAGE_ACCOUNT_KEY")
+STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT")
+STORAGE_ACCOUNT_KEY = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
 TABLE_NAME = "circuits"  # Replace with your actual table name
 # --- Main Logic ---
 
