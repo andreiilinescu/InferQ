@@ -54,6 +54,26 @@ class PipelineConfig:
         "max_circuit_size": 1500,  # Maximum total gates
     }
 
+    # Synergy Rules
+    SYNERGY_RULES = [
+        # QFT and QPE synergies
+        {"trigger": ["QFTGenerator"], "targets": ["QPE"], "multiplier": 2.5},
+        {"trigger": ["QPE"], "targets": ["QFTGenerator"], "multiplier": 2.0},
+        
+        # GHZ synergies
+        {"trigger": ["GHZ"], "targets": ["QuantumWalk", "QAOA", "VQEGenerator"], "multiplier": 1.4},
+        
+        # Variational generator synergies
+        {"trigger": ["VQEGenerator", "QAOA", "QNN"], "targets": ["RealAmplitudes", "TwoLocal"], "multiplier": 1.6},
+        
+        # Entangling generator synergies
+        {"trigger": ["GHZ", "WState", "GraphState", "EfficientU2", "QuantumWalk"],
+         "targets": ["DeutschJozsa", "GroverNoAncilla"], "multiplier": 1.3},
+         
+        # Graph state and quantum walk specific synergy
+        {"trigger": ["GraphState"], "targets": ["QuantumWalk"], "multiplier": 1.7},
+    ]
+
     # Simulation Configuration
     SIMULATION = {
         "shots": None,  # Exact simulation
@@ -156,6 +176,10 @@ class PipelineConfig:
                 "MAX_CIRCUIT_SIZE", self.CIRCUIT_GENERATION["max_circuit_size"], int
             ),
         }
+
+    def get_synergy_rules(self):
+        """Get synergy rules configuration."""
+        return self.SYNERGY_RULES
 
     def get_simulation_config(self):
         """Get simulation configuration."""
@@ -305,6 +329,11 @@ def get_pipeline_config():
 def get_circuit_config():
     """Get circuit generation configuration."""
     return config.get_circuit_config()
+
+
+def get_synergy_rules():
+    """Get synergy rules configuration."""
+    return config.get_synergy_rules()
 
 
 def get_simulation_config():
