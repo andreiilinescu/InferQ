@@ -177,3 +177,50 @@ def plot_best_method_hists(METHODS, FEATURES, df_clean):
 
     plt.tight_layout()
     plt.show()
+
+def load_all_parquet_files(fetched_data_dir: str = "../fetched_data") -> pd.DataFrame:
+    """
+    Load and combine all parquet files from the fetched_data directory into a single DataFrame.
+    
+    Parameters:
+    -----------
+    fetched_data_dir : str, optional
+        Path to the directory containing parquet files. Default is "../fetched_data"
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Combined DataFrame with all data from parquet files
+    """
+    import os
+    import glob
+    
+    # Get the full path
+    if not os.path.isabs(fetched_data_dir):
+        # If relative path, make it relative to the analysis directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        fetched_data_dir = os.path.join(current_dir, fetched_data_dir)
+    
+    # Find all parquet files
+    parquet_files = glob.glob(os.path.join(fetched_data_dir, "*.parquet"))
+    
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in {fetched_data_dir}")
+    
+    print(f"Found {len(parquet_files)} parquet files to load...")
+    
+    # Load and combine all parquet files
+    dfs = []
+    for i, file_path in enumerate(sorted(parquet_files)):
+        if (i + 1) % 50 == 0:
+            print(f"Loading file {i + 1}/{len(parquet_files)}...")
+        df = pd.read_parquet(file_path)
+        dfs.append(df)
+    
+    # Concatenate all dataframes
+    combined_df = pd.concat(dfs, ignore_index=True)
+    
+    print(f"Successfully loaded {len(combined_df)} rows from {len(parquet_files)} files")
+    print(f"DataFrame shape: {combined_df.shape}")
+    
+    return combined_df

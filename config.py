@@ -58,11 +58,11 @@ class PipelineConfig:
     SIMULATION = {
         "shots": None,  # Exact simulation
         "seed": 0,
-        "timeout_seconds": 60,
-        "max_qubits_statevector": 30,  # Conservative limit for statevector
-        "max_qubits_unitary": 30,  # Conservative limit for unitary/density matrix
-        "max_qubits_mps": 35,
-        "max_circuit_size": 3000,  # Skip circuits with too many gates
+        "timeout_seconds": 30,
+        "max_qubits_statevector": 20,  # Conservative limit for statevector
+        "max_qubits_unitary": 20,  # Conservative limit for unitary/density matrix
+        "max_qubits_mps": 20,
+        "max_circuit_size": 1000,  # Skip circuits with too many gates
     }
 
     # Storage Configuration
