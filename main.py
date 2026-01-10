@@ -8,7 +8,6 @@ from utils.save_utils import (
     upload_circuit_blob
 )
 from utils.azure_connection import AzureConnection
-from utils.features_const import FEATURES_LIST
 
 from feature_extractors.extractors import extract_features
 from simulators.simulate import QuantumSimulator
@@ -16,7 +15,6 @@ from simulators.simulate import QuantumSimulator
 from pathlib import Path
 import logging
 
-from qiskit_aer import AerSimulator
 
 # Suppress verbose Qiskit logging
 logging.getLogger('qiskit').setLevel(logging.WARNING)
@@ -166,7 +164,7 @@ def main():
     logger.info("\nInitializing Azure Connection...")
     if azure_config['enabled']:
         try:
-            self.azure_conn = AzureConnection()
+            azure_conn = AzureConnection()
             logger.warning("✓ Azure connection established for remote storage")
         except Exception as e:
             logger.warning(f"⚠️  Azure connection failed: {e}")

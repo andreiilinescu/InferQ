@@ -54,15 +54,35 @@ class PipelineConfig:
         "max_circuit_size": 1500,  # Maximum total gates
     }
 
+    # Synergy Rules
+    SYNERGY_RULES = [
+        # QFT and QPE synergies
+        {"trigger": ["QFTGenerator"], "targets": ["QPE"], "multiplier": 2.5},
+        {"trigger": ["QPE"], "targets": ["QFTGenerator"], "multiplier": 2.0},
+        
+        # GHZ synergies
+        {"trigger": ["GHZ"], "targets": ["QuantumWalk", "QAOA", "VQEGenerator"], "multiplier": 1.4},
+        
+        # Variational generator synergies
+        {"trigger": ["VQEGenerator", "QAOA", "QNN"], "targets": ["RealAmplitudes", "TwoLocal"], "multiplier": 1.6},
+        
+        # Entangling generator synergies
+        {"trigger": ["GHZ", "WState", "GraphState", "EfficientU2", "QuantumWalk"],
+         "targets": ["DeutschJozsa", "GroverNoAncilla"], "multiplier": 1.3},
+         
+        # Graph state and quantum walk specific synergy
+        {"trigger": ["GraphState"], "targets": ["QuantumWalk"], "multiplier": 1.7},
+    ]
+
     # Simulation Configuration
     SIMULATION = {
         "shots": None,  # Exact simulation
         "seed": 0,
-        "timeout_seconds": 60,
-        "max_qubits_statevector": 30,  # Conservative limit for statevector
-        "max_qubits_unitary": 30,  # Conservative limit for unitary/density matrix
-        "max_qubits_mps": 35,
-        "max_circuit_size": 3000,  # Skip circuits with too many gates
+        "timeout_seconds": 30,
+        "max_qubits_statevector": 20,  # Conservative limit for statevector
+        "max_qubits_unitary": 20,  # Conservative limit for unitary/density matrix
+        "max_qubits_mps": 20,
+        "max_circuit_size": 1000,  # Skip circuits with too many gates
     }
 
     # Storage Configuration
@@ -156,6 +176,10 @@ class PipelineConfig:
                 "MAX_CIRCUIT_SIZE", self.CIRCUIT_GENERATION["max_circuit_size"], int
             ),
         }
+
+    def get_synergy_rules(self):
+        """Get synergy rules configuration."""
+        return self.SYNERGY_RULES
 
     def get_simulation_config(self):
         """Get simulation configuration."""
@@ -305,6 +329,11 @@ def get_pipeline_config():
 def get_circuit_config():
     """Get circuit generation configuration."""
     return config.get_circuit_config()
+
+
+def get_synergy_rules():
+    """Get synergy rules configuration."""
+    return config.get_synergy_rules()
 
 
 def get_simulation_config():

@@ -4,6 +4,7 @@ import random
 import numpy as np
 import logging
 
+from config import get_synergy_rules
 from generators.lib.generator import Generator, BaseParams
 
 # Configure logging
@@ -66,10 +67,11 @@ class CircuitMerger:
     Class to merge multiple quantum circuits into a single hierarchical circuit.
     """
 
-    def __init__(self, base_params: BaseParams):
+    def __init__(self, base_params: BaseParams, synergy_config: list = None):
         logger.debug(f"Initializing CircuitMerger with params: {base_params}")
         self.base_params = base_params
         self.generators = self.initialize_generators()
+        self.synergy_config = synergy_config if synergy_config is not None else get_synergy_rules()
         random.seed(base_params.seed)
         np.random.seed(base_params.seed)
         logger.info(f"CircuitMerger initialized with {len(self.generators)} generators")
@@ -435,9 +437,7 @@ class CircuitMerger:
         self._apply_specific_synergies(
             current_probs,
             selected_name,
-            gen_names_array,
-            variational_mask,
-            entangling_mask,
+            gen_names_array
         )
 
         # Log significant probability changes
@@ -459,47 +459,25 @@ class CircuitMerger:
         current_probs: np.ndarray,
         selected_name: str,
         gen_names_array: np.ndarray,
-        variational_mask: np.ndarray,
-        entangling_mask: np.ndarray,
     ) -> None:
         """
-        Apply specific synergy rules using vectorized NumPy operations.
+        Apply specific synergy rules from configuration using vectorized NumPy operations.
         """
-        # QFT and QPE synergies
-        if selected_name == "QFTGenerator":
-            qpe_mask = gen_names_array == "QPE"
-            current_probs[qpe_mask] *= 2.5
-        elif selected_name == "QPE":
-            qft_mask = gen_names_array == "QFTGenerator"
-            current_probs[qft_mask] *= 2.0
+        for rule in self.synergy_config:
+            # Check if selected generator triggers this rule
+            if selected_name in rule["trigger"]:
+                targets = rule["targets"]
+                multiplier = rule["multiplier"]
 
-        # GHZ synergies
-        elif selected_name == "GHZ":
-            ghz_synergy_mask = np.isin(
-                gen_names_array, ["QuantumWalk", "QAOA", "VQEGenerator"]
-            )
-            current_probs[ghz_synergy_mask] *= 1.4
+                # Create mask for target generators
+                target_mask = np.isin(gen_names_array, targets)
 
-        # Variational generator synergies
-        elif selected_name in {"VQEGenerator", "QAOA", "QNN"}:
-            ansatz_mask = np.isin(gen_names_array, ["RealAmplitudes", "TwoLocal"])
-            current_probs[ansatz_mask] *= 1.6
-
-        # Entangling generator synergies
-        elif selected_name in {
-            "GHZ",
-            "WState",
-            "GraphState",
-            "EfficientU2",
-            "QuantumWalk",
-        }:
-            oracle_mask = np.isin(gen_names_array, ["DeutschJozsa", "GroverNoAncilla"])
-            current_probs[oracle_mask] *= 1.3
-
-        # Graph state and quantum walk specific synergy
-        if selected_name == "GraphState":
-            qwalk_mask = gen_names_array == "QuantumWalk"
-            current_probs[qwalk_mask] *= 1.7
+                # Apply multiplier
+                if np.any(target_mask):
+                    current_probs[target_mask] *= multiplier
+                    logger.debug(
+                        f"    Applied synergy: {selected_name} -> {targets} (x{multiplier})"
+                    )
 
     def _assign_circuit_parameters(self, circuit: QuantumCircuit) -> QuantumCircuit:
         """

@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils.azure_connection import AzureConnection
 from utils.table_storage import update_circuit_metadata_in_table
 from utils.checkpoint_writer import AsyncCheckpointWriter
-from simulators.simulate import QuantumSimulator
+from simulators.simulate import QuantumSimulator, SimulationMethod
 from config import PipelineConfig
 
 # Setup logging
@@ -52,8 +52,9 @@ def process_circuit_file(file_path, mode, simulator):
 
         updates = {}
         success_flag = False
+        skipped_flag = False
         error_msg = None
-
+        logger.info(f"Simulating circuit {circuit_hash} in mode {mode}")
         if mode == "auto":
             result = simulator.simulate_auto(qc)
             if result["success"]:
@@ -70,6 +71,9 @@ def process_circuit_file(file_path, mode, simulator):
                     "automatic_transpiled_size": result.get("transpiled_circuit_size"),
                     "automatic_transpiled_qubits": result.get("transpiled_num_qubits"),
                 }
+            elif result.get("skipped"):
+                skipped_flag = True
+                error_msg = result.get("error")
             else:
                 error_msg = result.get("error")
 
@@ -101,12 +105,53 @@ def process_circuit_file(file_path, mode, simulator):
                             updates[f"{prefix}_sparsity"] = data["sparsity"]
                         if result.get("method") == "automatic":
                             updates["automatic_method"] = data["actual_method"]
+                        
+                        # Handle InfiniQuantumSim benchmark results if present in 'all' mode
+                        if method_name == "infiniquantum" and "benchmark_results" in result:
+                            for bench_method, bench_data in result["benchmark_results"].items():
+                                if isinstance(bench_data, dict):
+                                    if "memory_avg_mb" in bench_data:
+                                        updates[f"rdbms_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                                    if "time_avg_s" in bench_data:
+                                        updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
+
+            elif any(r.get("skipped", False) for r in results.values()):
+                skipped_flag = True
+                error_msg = "Simulations skipped"
             else:
                 error_msg = "All simulations failed"
+
+        elif mode == "rdbms":
+            # Run only InfiniQuantumSim
+            # Enable DuckDB by excluding it from oom list (skip list)
+            # We skip psql and sqlite by default as they might not be configured
+            result = simulator._run_simulation(
+                qc, 
+                SimulationMethod.INFINI_QUANTUM, 
+                oom=["psql", "eqc"]
+            )
+            
+            if result.get("success", False):
+                success_flag = True
+                updates["rdbms_execution_time"] = result.get("execution_time")
+                
+                if "benchmark_results" in result:
+                    for bench_method, bench_data in result["benchmark_results"].items():
+                        if isinstance(bench_data, dict):
+                            if "memory_avg_mb" in bench_data:
+                                updates[f"rdbms_{bench_method}_memory_mb"] = bench_data["memory_avg_mb"]
+                            if "time_avg_s" in bench_data:
+                                updates[f"rdbms_{bench_method}_time_s"] = bench_data["time_avg_s"]
+            elif result.get("skipped"):
+                skipped_flag = True
+                error_msg = result.get("error")
+            else:
+                error_msg = result.get("error")
 
         return {
             "hash": circuit_hash,
             "success": success_flag,
+            "skipped": skipped_flag,
             "updates": updates,
             "error": error_msg,
             "file_path": file_path,
@@ -131,7 +176,10 @@ def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
     results = []
     try:
         # Initialize Simulator once per folder/worker
-        simulator = QuantumSimulator(timeout_seconds=60)
+        sim_config = PipelineConfig.SIMULATION
+        simulator = QuantumSimulator(
+            timeout_seconds=sim_config.get("timeout_seconds", 60)
+        )
 
         # Initialize Azure Connection once per folder/worker
         try:
@@ -182,6 +230,11 @@ def process_folder(folder_path, mode, processed_hashes, checkpoints_dir):
                         logger.error(f"Azure update error for {circuit_hash}: {e}")
                         result["table_updated"] = False
                         result["error"] = f"Azure update failed: {e}"
+                elif result.get("skipped"):
+                    # If skipped (e.g. timeout or too complex), write to checkpoint so we don't retry
+                    logger.info(f"Skipping {circuit_hash}: {result.get('error')}")
+                    checkpoint_f.write(f"{circuit_hash}\n")
+                    checkpoint_f.flush()
 
                 results.append(result)
 
@@ -348,14 +401,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["auto", "all"],
+        choices=["auto", "all", "rdbms"],
         default=None,
-        help="Simulation mode: 'auto' or 'all'.",
+        help="Simulation mode: 'auto', 'all', or 'rdbms'.",
     )
     parser.add_argument(
         "--checkpoints-dir",
         type=str,
-        default="checkpoints",
+        default=None,
         help="Directory to store processed circuit hashes per folder.",
     )
     parser.add_argument(
@@ -401,16 +454,22 @@ if __name__ == "__main__":
     if mode is None:
         try:
             user_input = (
-                input("Enter simulation mode (auto/all) [default: auto]: ")
+                input("Enter simulation mode (auto/all/rdbms) [default: auto]: ")
                 .strip()
                 .lower()
             )
-            if user_input in ["auto", "all"]:
+            if user_input in ["auto", "all", "rdbms"]:
                 mode = user_input
             else:
                 mode = "auto"
         except EOFError:
             mode = "auto"
+
+    if checkpoints_dir is None:
+        if mode == "rdbms":
+            checkpoints_dir = "checkpoints_rdbms"
+        else:
+            checkpoints_dir = "checkpoints"
 
     if workers is None:
         try:
